@@ -1,7 +1,6 @@
 ﻿using Comfort.Common;
 using EFT;
 using EFT.InventoryLogic;
-using SIT.Core.Coop.ItemControllerPatches;
 using StayInTarkov;
 using System;
 using System.Collections.Generic;

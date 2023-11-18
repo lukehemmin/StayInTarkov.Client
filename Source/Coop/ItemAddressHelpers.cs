@@ -8,6 +8,7 @@ namespace SIT.Core.Coop
     {
         private static string DICTNAMES_SlotItemAddressDescriptor { get; } = "sitad";
         private static string DICTNAMES_GridItemAddressDescriptor { get; } = "grad";
+        private static string DICTNAMES_StackSlotItemAddressDescriptor { get; } = "ssad";
 
         public static void ConvertItemAddressToDescriptor(ItemAddress location, ref Dictionary<string, object> dictionary)
         {
@@ -28,6 +29,45 @@ namespace SIT.Core.Coop
                 slotItemAddressDescriptor.Container.ParentId = location.Container.ParentItem != null ? location.Container.ParentItem.Id : null;
 
                 dictionary.Add(DICTNAMES_SlotItemAddressDescriptor, slotItemAddressDescriptor);
+            }
+        }
+
+        public static void ConvertItemAddressToDescriptor(ItemAddress location
+            , ref Dictionary<string, object> dictionary
+            , out GridItemAddressDescriptor gridItemAddressDescriptor
+            , out SlotItemAddressDescriptor slotItemAddressDescriptor
+            , out StackSlotItemAddressDescriptor stackSlotItemAddressDescriptor
+            )
+        {
+            gridItemAddressDescriptor = null;
+            slotItemAddressDescriptor = null;
+            stackSlotItemAddressDescriptor = null;
+
+            if (location is GridItemAddress gridItemAddress)
+            {
+                gridItemAddressDescriptor = new();
+                gridItemAddressDescriptor.Container = new ContainerDescriptor();
+                gridItemAddressDescriptor.Container.ContainerId = location.Container.ID;
+                gridItemAddressDescriptor.Container.ParentId = location.Container.ParentItem != null ? location.Container.ParentItem.Id : null;
+                gridItemAddressDescriptor.LocationInGrid = gridItemAddress.LocationInGrid;
+                dictionary.Add(DICTNAMES_GridItemAddressDescriptor, gridItemAddressDescriptor);
+            }
+            else if (location is SlotItemAddress slotItemAddress)
+            {
+                slotItemAddressDescriptor = new();
+                slotItemAddressDescriptor.Container = new ContainerDescriptor();
+                slotItemAddressDescriptor.Container.ContainerId = location.Container.ID;
+                slotItemAddressDescriptor.Container.ParentId = location.Container.ParentItem != null ? location.Container.ParentItem.Id : null;
+
+                dictionary.Add(DICTNAMES_SlotItemAddressDescriptor, slotItemAddressDescriptor);
+            }
+            else if (location is StackSlotItemAddress StackSlotItemAddress)
+            {
+                stackSlotItemAddressDescriptor = new();
+                stackSlotItemAddressDescriptor.Container = new();
+                stackSlotItemAddressDescriptor.Container.ContainerId = location.Container.ID;
+                stackSlotItemAddressDescriptor.Container.ParentId = location.Container.ParentItem != null ? location.Container.ParentItem.Id : null;
+                dictionary.Add(DICTNAMES_StackSlotItemAddressDescriptor, stackSlotItemAddressDescriptor);
             }
         }
 

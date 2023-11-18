@@ -6,6 +6,7 @@ using SIT.Coop.Core.Web;
 using SIT.Core.Coop;
 using SIT.Core.Coop.Components;
 using SIT.Core.Coop.NetworkPacket;
+using SIT.Core.Coop.PacketHandlers;
 using SIT.Core.Coop.Player;
 using SIT.Tarkov.Core;
 using StayInTarkov;
@@ -33,6 +34,8 @@ namespace SIT.Coop.Core.Player
         private float PoseLevelDesired { get; set; } = 1;
         public float ReplicatedMovementSpeed { get; set; }
         private float PoseLevelSmoothed { get; set; } = 1;
+
+        private HashSet<IPlayerPacketHandlerComponent> PacketHandlerComponents { get; } = new();
 
         void Awake()
         {
@@ -93,7 +96,7 @@ namespace SIT.Coop.Core.Player
                 }
             }
 
-            //GCHelpers.EnableGC();
+            PacketHandlerComponents.Add(new MoveOperationPlayerPacketHandler());
         }
 
         public void ProcessPacket(Dictionary<string, object> packet)
@@ -116,16 +119,13 @@ namespace SIT.Coop.Core.Player
                 return;
             }
 
-
-            //var packetHandlerComponents = this.GetComponents<IPlayerPacketHandlerComponent>();
-            //if (packetHandlerComponents != null)
-            //{
-            //    packetHandlerComponents = packetHandlerComponents.Where(x => x.GetType() != typeof(PlayerReplicatedComponent)).ToArray();
-            //    foreach (var packetHandlerComponent in packetHandlerComponents)
-            //    {
-            //        packetHandlerComponent.ProcessPacket(packet);
-            //    }
-            //}
+            if (PacketHandlerComponents != null)
+            {
+                foreach (var packetHandlerComponent in PacketHandlerComponents)
+                {
+                    packetHandlerComponent.ProcessPacket(packet);
+                }
+            }
         }
 
         void ProcessPlayerState(Dictionary<string, object> packet)

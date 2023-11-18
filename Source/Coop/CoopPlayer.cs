@@ -75,9 +75,7 @@ namespace SIT.Core.Coop
             }
             player.IsYourPlayer = isYourPlayer;
 
-            InventoryController inventoryController = isYourPlayer && !isClientDrone 
-                ? new CoopInventoryController(player, profile, true) 
-                : new CoopInventoryControllerForClientDrone(player, profile, true);
+            InventoryController inventoryController = new CoopInventoryController(player, profile, true);
 
             if (questController == null && isYourPlayer)
             {
