@@ -87,7 +87,9 @@ namespace SIT.Core.Coop
             
             await player
                 .Init(rotation, layerName, pointOfView, profile, inventoryController
-                , new PlayerHealthController(profile.Health, player, inventoryController, profile.Skills, aiControl)
+                , isYourPlayer 
+                    ? new CoopHealthController(profile.Health, player, inventoryController, profile.Skills, aiControl) 
+                    : new CoopHealthControllerForClientDrone(profile.Health, player, inventoryController, profile.Skills, aiControl)
                 , isYourPlayer ? new CoopPlayerStatisticsManager() : new NullStatisticsManager()
                 , questController
                 , filter
