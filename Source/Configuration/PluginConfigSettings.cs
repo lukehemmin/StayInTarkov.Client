@@ -1,8 +1,7 @@
 ﻿using BepInEx.Configuration;
 using BepInEx.Logging;
-using StayInTarkov;
 
-namespace SIT.Core.Configuration
+namespace StayInTarkov.Configuration
 {
     /// <summary>
     /// Created by: Paulov
@@ -47,15 +46,30 @@ namespace SIT.Core.Configuration
 
             public bool UseSITGarbageCollector { get; set; }
 
-            public int SITGarbageCollectorIntervalMinutes { get; set; }
+            public long SITGCMemoryThreshold { get; internal set; }
+
+            public bool SITGCClearAssets { get; internal set; }
+
+            public bool SITGCAggressiveClean { get; internal set; }
 
             public void GetSettings()
             {
                 UseSITGarbageCollector = StayInTarkovPlugin.Instance.Config.Bind
                 ("Advanced", "UseSITGarbageCollector", true, new ConfigDescription("Whether to use the Garbage Collector developed in to SIT OR leave it to BSG/Unity")).Value;
 
-                SITGarbageCollectorIntervalMinutes = StayInTarkovPlugin.Instance.Config.Bind
-                ("Advanced", "SITGarbageCollectorIntervalMinutes", 5, new ConfigDescription("Number of minutes to enable SIT Garbage Collector")).Value;
+                SITGCMemoryThreshold = StayInTarkovPlugin.Instance.Config.Bind
+                ("Advanced", "SITGarbageCollectorMemoryThreshold", 512, new ConfigDescription("The SIT Garbage Collector memory threshold (in megabytes) between ticks before forcing a garbage collection")).Value;
+
+                SITGCClearAssets = StayInTarkovPlugin.Instance.Config.Bind
+                ("Advanced", "SITGarbageCollectorClearAssets", false, new ConfigDescription("Set SIT Garbage Collector to clear Unity assets. Reduces RAM usage but can be unstable!")).Value;
+
+                SITGCAggressiveClean = StayInTarkovPlugin.Instance.Config.Bind
+                ("Advanced", "SITGarbageCollectorAggressiveClean", false, new ConfigDescription("Set SIT Garbage Collector to aggresively clean RAM. This will signficantly reduce in Raid RAM usage at the expense of a 1-5s freeze.")).Value;
+
+                Logger.LogInfo($"UseSITGarbageCollector:{UseSITGarbageCollector}");
+                Logger.LogInfo($"SITGCMemoryThreshold:{SITGCMemoryThreshold}");
+                Logger.LogInfo($"SITGCClearAssets:{SITGCClearAssets}");
+                Logger.LogInfo($"SITGCAggressiveClean:{SITGCAggressiveClean}");
 
             }
         }
@@ -73,13 +87,13 @@ namespace SIT.Core.Configuration
             }
 
             public bool SETTING_DEBUGSpawnDronesOnServer { get; set; } = false;
-            public bool SETTING_DEBUGShowPlayerList 
-            { 
-                get 
-                { 
+            public bool SETTING_DEBUGShowPlayerList
+            {
+                get
+                {
                     return StayInTarkovPlugin.Instance.Config.Bind
                        ("Coop", "ShowPlayerList", false, new ConfigDescription("Whether to show the player list on the GUI -- for debugging")).Value;
-                } 
+                }
             }
 
             public int SETTING_PlayerStateTickRateInMS { get; set; } = 333;

@@ -3,8 +3,9 @@ using DrakiaXYZ.BigBrain.Brains;
 using EFT;
 using HarmonyLib;
 using System;
-using System.Collections;
 using System.Reflection;
+using System.Collections;
+
 using AICoreLogicAgentClass = AICoreAgentClass<BotLogicDecision>;
 using AILogicActionResultStruct = AICoreActionResultStruct<BotLogicDecision>;
 
@@ -18,8 +19,8 @@ namespace DrakiaXYZ.BigBrain.Internal
 
         protected ManualLogSource Logger;
         private readonly CustomLayer customLayer;
-        private AICoreActionEndStruct endAction = new("Base logic", true);
-        private AICoreActionEndStruct continueAction = new(null, false);
+        private AICoreActionEndStruct endAction = new AICoreActionEndStruct("Base logic", true);
+        private AICoreActionEndStruct continueAction = new AICoreActionEndStruct(null, false);
 
         public CustomLayerWrapper(Type customLayerType, BotOwner bot, int priority) : base(bot, priority)
         {
@@ -108,7 +109,7 @@ namespace DrakiaXYZ.BigBrain.Internal
             }
         }
 
-        static internal GClass121 GetLogicInstance(BotOwner botOwner)
+        static internal BaseNodeClass GetLogicInstance(BotOwner botOwner)
         {
             // Sanity check
             if (botOwner == null || botOwner.Brain?.Agent == null)
@@ -124,7 +125,7 @@ namespace DrakiaXYZ.BigBrain.Internal
 
             BotLogicDecision logicDecision = botOwner.Brain.Agent.LastResult().Action;
             var aiCoreNodeDict = _logicInstanceDictField.GetValue(botOwner.Brain.Agent) as IDictionary;
-            return aiCoreNodeDict[logicDecision] as GClass121;
+            return aiCoreNodeDict[logicDecision] as BaseNodeClass;
         }
 
         internal CustomLayer CustomLayer()

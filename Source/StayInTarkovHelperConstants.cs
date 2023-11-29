@@ -2,9 +2,8 @@ using BepInEx.Logging;
 using Comfort.Common;
 using EFT;
 using FilesChecker;
-using HarmonyLib;
 using Newtonsoft.Json;
-using StayInTarkov;
+using StayInTarkov.Coop;
 using StayInTarkov.EssentialPatches;
 using StayInTarkov.UI;
 using System;
@@ -12,10 +11,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using UnityEngine.Assertions;
 using static StayInTarkov.PaulovJsonConverters;
 
-namespace SIT.Tarkov.Core
+namespace StayInTarkov
 {
     /// <summary>
     /// Credit: SPT-Aki
@@ -41,6 +39,21 @@ namespace SIT.Tarkov.Core
 
         public static Type[] FilesCheckerTypes { get; private set; }
 
+        private static Type[] _sitTypes;
+        public static Type[] SITTypes
+        {
+            get
+            {
+                if (_sitTypes == null)
+                {
+                    _sitTypes = typeof(ISITGame).Assembly.GetTypes().OrderBy(t => t.Name).ToArray();
+                }
+
+                return _sitTypes;
+            }
+        }
+
+
         /// <summary>
         /// A Key/Value dictionary of storing & obtaining an array of types by name
         /// </summary>
@@ -61,7 +74,7 @@ namespace SIT.Tarkov.Core
         /// <summary>
         /// Method that returns the Backend Url (Example: https://127.0.0.1)
         /// </summary>
-        private static string RealWSURL;   
+        private static string RealWSURL;
         public static string GetBackendUrl()
         {
             if (string.IsNullOrEmpty(backendUrl))
@@ -97,8 +110,8 @@ namespace SIT.Tarkov.Core
         public static Type JsonConverterType { get; }
         public static Newtonsoft.Json.JsonConverter[] JsonConverterDefault { get; }
 
-        private static ISession _backEndSession;
-        public static ISession BackEndSession
+        private static IBackEndSession _backEndSession;
+        public static IBackEndSession BackEndSession
         {
             get
             {
@@ -107,9 +120,9 @@ namespace SIT.Tarkov.Core
                     _backEndSession = Singleton<TarkovApplication>.Instance.GetClientBackEndSession();
                 }
 
-                if (_backEndSession == null && Singleton<ClientApplication<ISession>>.Instantiated)
+                if (_backEndSession == null && Singleton<ClientApplication<IBackEndSession>>.Instantiated)
                 {
-                    _backEndSession = Singleton<ClientApplication<ISession>>.Instance.GetClientBackEndSession();
+                    _backEndSession = Singleton<ClientApplication<IBackEndSession>>.Instance.GetClientBackEndSession();
                 }
 
                 return _backEndSession;
@@ -226,9 +239,9 @@ namespace SIT.Tarkov.Core
             }
         }
 
-        public static ClientApplication<ISession> GetClientApp()
+        public static ClientApplication<IBackEndSession> GetClientApp()
         {
-            return Singleton<ClientApplication<ISession>>.Instance;
+            return Singleton<ClientApplication<IBackEndSession>>.Instance;
         }
 
         public static TarkovApplication GetMainApp()
@@ -246,7 +259,7 @@ namespace SIT.Tarkov.Core
 
             FilesCheckerTypes = typeof(ICheckResult).Assembly.GetTypes();
             DisplayMessageNotifications.MessageNotificationType = EftTypes.Single(x => x.GetMethods(BindingFlags.Static | BindingFlags.Public).Select(y => y.Name).Contains("DisplayMessageNotification"));
-          
+
             JsonConverterType = typeof(AbstractGame).Assembly.GetTypes()
                .First(t => t.GetField("Converters", BindingFlags.Static | BindingFlags.Public) != null);
             JsonConverterDefault = JsonConverterType.GetField("Converters", BindingFlags.Static | BindingFlags.Public).GetValue(null) as JsonConverter[];

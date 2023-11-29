@@ -3,32 +3,29 @@ using EFT;
 using EFT.Interactive;
 using EFT.InventoryLogic;
 using EFT.UI;
-using SIT.Coop.Core.Matchmaker;
-using SIT.Coop.Core.Player;
-using SIT.Coop.Core.Web;
-using SIT.Core.Configuration;
-using SIT.Core.Coop.Components;
-using SIT.Core.Coop.World;
-using SIT.Tarkov.Core;
-using StayInTarkov;
-using StayInTarkov.AkiSupport.Singleplayer.Patches.Quests;
-using StayInTarkov.Coop;
+using StayInTarkov.Configuration;
+using StayInTarkov.Coop.Components;
+using StayInTarkov.Coop.Matchmaker;
+using StayInTarkov.Coop.Player;
+using StayInTarkov.Coop.Web;
+using StayInTarkov.Core.Player;
+using StayInTarkov.EssentialPatches;
 using StayInTarkov.Memory;
 using StayInTarkov.Networking;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Scripting;
 
 using Rect = UnityEngine.Rect;
 
-namespace SIT.Core.Coop
+namespace StayInTarkov.Coop
 {
     /// <summary>
     /// Coop Game Component is the User 1-2-1 communication to the Server
@@ -95,9 +92,6 @@ namespace SIT.Core.Coop
 
         public List<EFT.LocalPlayer> SpawnedPlayersToFinalize { get; private set; } = new();
 
-        /**
-         * https://stackoverflow.com/questions/48919414/poor-performance-with-concurrent-queue
-         */
         public BlockingCollection<Dictionary<string, object>> ActionPackets => ActionPacketHandler.ActionPackets;
 
         private Dictionary<string, object>[] m_CharactersJson { get; set; }
@@ -155,6 +149,11 @@ namespace SIT.Core.Coop
             Logger = BepInEx.Logging.Logger.CreateLogSource("CoopGameComponent");
             Logger.LogDebug("CoopGameComponent:Awake");
 
+            LCByterCheck[0] = StayInTarkovHelperConstants
+                .SITTypes
+                .Any(x => x.Name == 
+                Encoding.UTF8.GetString(new byte[] { 0x4c, 0x65, 0x67, 0x61, 0x6c, 0x47, 0x61, 0x6d, 0x65, 0x43, 0x68, 0x65, 0x63, 0x6b }))
+                ? (byte)0x1 : (byte)0x0;
         }
 
 
@@ -219,6 +218,8 @@ namespace SIT.Core.Coop
 
         }
 
+        private long? lastMemory { get;set; }
+
         /// <summary>
         /// This clears out the RAM usage very effectively.
         /// </summary>
@@ -230,7 +231,6 @@ namespace SIT.Core.Coop
                 return;
 
             int counter = 0;
-            int maxMoveCounter = 60;
             await Task.Run(async () =>
             {
                 do
@@ -239,23 +239,53 @@ namespace SIT.Core.Coop
 
                     counter++;
 
-                    var myPlayer = Singleton<GameWorld>.Instance.MainPlayer;
-                    if ((myPlayer != null && (myPlayer.HealthController.IsAlive && !myPlayer.Velocity.Equals(Vector3.zero))) && maxMoveCounter > 0)
-                    {
-                        maxMoveCounter--;
-                        continue;
-                    }
+                    //var myPlayer = Singleton<GameWorld>.Instance.MainPlayer;
+                    //if ((myPlayer != null && (myPlayer.HealthController.IsAlive && !myPlayer.Velocity.Equals(Vector3.zero))) && maxMoveCounter > 0)
+                    //{
+                    //    maxMoveCounter--;
+                    //    continue;
+                    //}
 
-                    if (counter == (60 * PluginConfigSettings.Instance.AdvancedSettings.SITGarbageCollectorIntervalMinutes))
+                    //if (counter == (60 * PluginConfigSettings.Instance.AdvancedSettings.SITGarbageCollectorIntervalMinutes))
+                    //{
+                    //    GCHelpers.EnableGC();
+                    //}
+
+                    //if (counter == (61 * PluginConfigSettings.Instance.AdvancedSettings.SITGarbageCollectorIntervalMinutes))
+                    //{
+                    //    GCHelpers.DisableGC(true);
+                    //    counter = 0;
+                    //}
+
+                    var memory = GC.GetTotalMemory(false);
+                    if (!lastMemory.HasValue)
+                        lastMemory = memory;
+
+                    long memoryThreshold = PluginConfigSettings.Instance.AdvancedSettings.SITGCMemoryThreshold;
+
+                    if (lastMemory.HasValue && memory > lastMemory.Value + (memoryThreshold * 1024 * 1024))
                     {
+                        Logger.LogDebug($"Current Memory Allocated:{memory / 1024 / 1024}mb");
+                        lastMemory = memory;
+                        Stopwatch sw = Stopwatch.StartNew();
+
                         GCHelpers.EnableGC();
-                    }
+                        if (PluginConfigSettings.Instance.AdvancedSettings.SITGCAggressiveClean)
+                        {
+                            GCHelpers.ClearGarbage(true, PluginConfigSettings.Instance.AdvancedSettings.SITGCClearAssets);
+                        }
+                        else
+                        {
+                            GC.GetTotalMemory(true);
+                            GCHelpers.DisableGC(true);
+                        }
 
-                    if (counter == (61 * PluginConfigSettings.Instance.AdvancedSettings.SITGarbageCollectorIntervalMinutes))
-                    {
-                        GCHelpers.DisableGC(true);
-                        counter = 0;
-                        maxMoveCounter = 60;
+                        var freedMemory = GC.GetTotalMemory(false);
+                        Logger.LogDebug($"Freed {(freedMemory > 0 ? (freedMemory / 1024 / 1024) : 0)}mb in memory");
+                        Logger.LogDebug($"Garbage Collection took {sw.ElapsedMilliseconds}ms");
+                        sw.Stop();
+                        sw = null;
+
                     }
 
                 } while (RunAsyncTasks && PluginConfigSettings.Instance.AdvancedSettings.UseSITGarbageCollector);
@@ -553,13 +583,16 @@ namespace SIT.Core.Coop
                 instance.PlayerRTT = ServerPing;
                 instance.ServerFixedUpdateTime = ServerPing;
                 instance.ServerTime = ServerPing;
-                return;
             }
 
-            //MonoBehaviourSingleton<PreloaderUI>.Instance.SetBlackImageAlpha(0);
-
-            //LateUpdateSpan = DateTime.Now - DateTimeStart;
+            if (Singleton<PreloaderUI>.Instantiated && LCByterCheck[0] == 0 && LCByterCheck[1] == 0)
+            {
+                LCByterCheck[1] = 1;
+                Singleton<PreloaderUI>.Instance.ShowCriticalErrorScreen("", StayInTarkovPlugin.IllegalMessage, ErrorScreen.EButtonType.QuitButton, 60, () => { Application.Quit(); }, () => { Application.Quit(); });
+            }
         }
+
+        byte[] LCByterCheck { get; } = new byte[2] { 0, 0 };
 
         #endregion
 
@@ -979,7 +1012,7 @@ namespace SIT.Core.Coop
                 {
                     if (LocalGameInstance != null)
                     {
-                        var botController = (BotControllerClass)ReflectionHelpers.GetFieldFromTypeByFieldType(typeof(BaseLocalGame<GamePlayerOwner>), typeof(BotControllerClass)).GetValue(this.LocalGameInstance);
+                        var botController = (BotsController)ReflectionHelpers.GetFieldFromTypeByFieldType(typeof(BaseLocalGame<GamePlayerOwner>), typeof(BotsController)).GetValue(this.LocalGameInstance);
                         if (botController != null)
                         {
                             Logger.LogDebug("Adding Client Player to Enemy list");
@@ -1259,7 +1292,7 @@ namespace SIT.Core.Coop
             var h = 0.2f; // proportional height (0..1)
             var rectEndOfGameMessage = UnityEngine.Rect.zero;
             rectEndOfGameMessage.x = (float)(Screen.width * (1 - w)) / 2;
-            rectEndOfGameMessage.y = (float)(Screen.height * (1 - h)) / 2 + (Screen.height/3);
+            rectEndOfGameMessage.y = (float)(Screen.height * (1 - h)) / 2 + (Screen.height / 3);
             rectEndOfGameMessage.width = Screen.width * w;
             rectEndOfGameMessage.height = Screen.height * h;
 
@@ -1282,7 +1315,7 @@ namespace SIT.Core.Coop
                     //GUI.Label(rectEndOfGameMessage, $"You're team is Dead! Please quit now using the F8 Key.", middleLargeLabelStyle);
                     if (GUI.Button(rectEndOfGameMessage, StayInTarkovPlugin.LanguageDictionary["RAID_TEAM_DEAD"], middleLargeLabelStyle))
                     {
-                        
+
                     }
                     break;
                 case EQuitState.YouAreDead:
@@ -1373,7 +1406,7 @@ namespace SIT.Core.Coop
 
             foreach (var pl in PlayerUsers)
             {
-                if (pl == null) 
+                if (pl == null)
                     continue;
 
                 if (pl.HealthController == null)

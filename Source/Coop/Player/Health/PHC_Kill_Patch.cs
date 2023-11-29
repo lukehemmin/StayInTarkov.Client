@@ -1,15 +1,13 @@
 ﻿using BepInEx.Logging;
 using EFT;
 using EFT.HealthSystem;
-using SIT.Core.Coop.NetworkPacket;
-using SIT.Tarkov.Core;
-using StayInTarkov;
+using StayInTarkov.Coop.NetworkPacket;
 using StayInTarkov.Networking;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace SIT.Core.Coop.Player.Health
+namespace StayInTarkov.Coop.Player.Health
 {
     internal class PHC_Kill_Patch : ModuleReplicationPatch
     {
@@ -80,7 +78,7 @@ namespace SIT.Core.Coop.Player.Health
             if (!dict.ContainsKey("data"))
                 return;
 
-            KillPacket killPacket = new KillPacket(player.ProfileId);
+            KillPacket killPacket = new(player.ProfileId);
             killPacket.DeserializePacketSIT(dict["data"].ToString());
 
             if (HasProcessed(GetType(), player, killPacket))

@@ -1,15 +1,12 @@
-﻿using EFT;
-using SIT.Coop.Core.Player;
-using SIT.Core.Coop.NetworkPacket;
-using SIT.Tarkov.Core;
-using StayInTarkov;
+﻿using StayInTarkov.Coop.NetworkPacket;
+using StayInTarkov.Core.Player;
 using StayInTarkov.Networking;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-namespace SIT.Core.Coop.Player
+namespace StayInTarkov.Coop.Player
 {
 
     /// <summary>
@@ -74,17 +71,8 @@ namespace SIT.Core.Coop.Player
             if (prc.IsClientDrone)
                 return;
 
-            PlayerMovePacket playerMovePacket = new(player.ProfileId);
-            playerMovePacket.ProfileId = player.ProfileId;
-            playerMovePacket.pX = player.Position.x;
-            playerMovePacket.pY = player.Position.y;
-            playerMovePacket.pZ = player.Position.z;
+            PlayerMovePacket playerMovePacket = new(player.ProfileId, player.Position.x, player.Position.y, player.Position.z, direction.x, direction.y, player.MovementContext.CharacterMovementSpeed);
 
-            playerMovePacket.dX = direction.x;
-            playerMovePacket.dY = direction.y;
-
-            playerMovePacket.spd = player.MovementContext.CharacterMovementSpeed;
-            
             var serialized = playerMovePacket.Serialize();
             if (serialized == null)
                 return;
@@ -107,6 +95,8 @@ namespace SIT.Core.Coop.Player
                     )
                     return;
 
+                lastMovePacket.Dispose();
+                lastMovePacket = null;
                 PlayerMovePackets[player.ProfileId] = playerMovePacket;
                 AkiBackendCommunication.Instance.SendDataToPool(serialized);
             }
@@ -122,23 +112,8 @@ namespace SIT.Core.Coop.Player
             //if (HasProcessed(this.GetType(), player, dict))
             //    return;
 
-            PlayerMovePacket ReplicatedPMP = new(player.ProfileId);
-
-            //if (dict.ContainsKey("data"))
-            //{
-            ReplicatedPMP = new PlayerMovePacket(player.ProfileId);
-            ReplicatedPMP.DeserializePacketSIT(dict["data"].ToString());
-            //GetLogger(typeof(Player_Move_Patch)).LogDebug(dict["data"].ToString());
-            //}
-            //else
-            //{
-            //    ReplicatedPMP = new PlayerMovePacket(player.ProfileId)
-            //    {
-            //        dX = float.Parse(dict["dX"].ToString()),
-            //        dY = float.Parse(dict["dY"].ToString()),
-            //        spd = float.Parse(dict["spd"].ToString()),
-            //    };
-            //}
+            PlayerMovePacket ReplicatedPMP = new(null, 0, 0, 0, 0, 0, 0);
+            ReplicatedPMP = ReplicatedPMP.DeserializePacketSIT(dict["data"].ToString());
             ReplicatedMove(player, ReplicatedPMP);
 
             ReplicatedPMP = null;
@@ -168,7 +143,7 @@ namespace SIT.Core.Coop.Player
 
                     UnityEngine.Vector2 direction = new(playerMovePacket.dX, playerMovePacket.dY);
                     float spd = playerMovePacket.spd;
-                   
+
                     playerReplicatedComponent.ReplicatedMovementSpeed = spd;
                     playerReplicatedComponent.ReplicatedDirection = null;
 
@@ -185,6 +160,43 @@ namespace SIT.Core.Coop.Player
             }
         }
 
-        
+        public void ReplicatedMove(EFT.Player player, ReceivedPlayerMoveStruct playerMoveStruct)
+        {
+            if (!player.TryGetComponent<PlayerReplicatedComponent>(out PlayerReplicatedComponent playerReplicatedComponent))
+                return;
+
+            if (!playerReplicatedComponent.IsClientDrone)
+                return;
+
+            if (playerMoveStruct.pX != 0 && playerMoveStruct.pY != 0 && playerMoveStruct.pZ != 0)
+            {
+                var ReplicatedPosition = new Vector3(playerMoveStruct.pX, playerMoveStruct.pY, playerMoveStruct.pZ);
+                var replicationDistance = Vector3.Distance(ReplicatedPosition, player.Position);
+                if (replicationDistance >= 3)
+                {
+                    player.Teleport(ReplicatedPosition, true);
+                }
+                else
+                {
+                    player.Position = Vector3.Lerp(player.Position, ReplicatedPosition, Time.deltaTime * 7);
+                }
+            }
+
+            UnityEngine.Vector2 direction = new(playerMoveStruct.dX, playerMoveStruct.dY);
+            float spd = playerMoveStruct.spd;
+
+            playerReplicatedComponent.ReplicatedMovementSpeed = spd;
+            playerReplicatedComponent.ReplicatedDirection = null;
+
+            player.InputDirection = direction;
+            player.MovementContext.MovementDirection = direction;
+
+            player.MovementContext.CharacterMovementSpeed = spd;
+
+            player.CurrentManagedState.Move(direction);
+
+            playerReplicatedComponent.ReplicatedDirection = direction;
+
+        }
     }
 }

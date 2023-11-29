@@ -1,23 +1,20 @@
 ﻿using Newtonsoft.Json;
-using SIT.Tarkov.Core;
-using StayInTarkov;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace SIT.Core.Coop.NetworkPacket
+namespace StayInTarkov.Coop.NetworkPacket
 {
     public abstract class BasePacket : ISITPacket
     {
-        [JsonIgnore]
-        static Random Randomizer { get; } = new Random();
-
         [JsonProperty(PropertyName = "serverId")]
-        public string ServerId { get; set; } = CoopGameComponent.GetServerId();
+        public string ServerId { get; set; }
 
         [JsonIgnore]
         private string _t;
@@ -27,9 +24,6 @@ namespace SIT.Core.Coop.NetworkPacket
         {
             get
             {
-                if (string.IsNullOrEmpty(_t))
-                    _t = DateTime.Now.Ticks.ToString("G");
-
                 return _t;
             }
             set
@@ -38,78 +32,39 @@ namespace SIT.Core.Coop.NetworkPacket
             }
         }
 
-        private double? _token;
-
-        [JsonProperty(PropertyName = "tkn")]
-        public double Token
-        {
-            get { return _token.HasValue ? _token.Value : Randomizer.NextDouble(); }
-            set { _token = value; }
-        }
-
-
         [JsonProperty(PropertyName = "m")]
-        public virtual string Method { get; set; } = null;
+        public virtual string Method { get; set; }
 
         //[JsonProperty(PropertyName = "pong")]
         //public virtual string Pong { get; set; } = DateTime.UtcNow.Ticks.ToString("G");
 
-        public BasePacket()
+        public BasePacket(string method)
         {
+            Method = method;
             ServerId = CoopGameComponent.GetServerId();
+            TimeSerializedBetter = DateTime.Now.Ticks.ToString("G");
         }
+
+        public static Dictionary<Type, PropertyInfo[]> TypeProperties = new ();
 
         public static PropertyInfo[] GetPropertyInfos(ISITPacket packet)
         {
-            var allProps = ReflectionHelpers.GetAllPropertiesForObject(packet);
-            var allPropsFiltered = allProps
-              .Where(x => x.Name != "ServerId" && x.Name != "Method" && x.Name != "Randomizer")
-              .OrderByDescending(x => x.Name == "ProfileId").ToArray();
-            return allPropsFiltered;
+            return GetPropertyInfos(packet.GetType());
         }
+
         public static PropertyInfo[] GetPropertyInfos(Type t)
         {
-            var allProps = ReflectionHelpers.GetAllPropertiesForType(t);
-            var allPropsFiltered = allProps
-              .Where(x => x.Name != "ServerId" && x.Name != "Method" && x.Name != "Randomizer")
-              .OrderByDescending(x => x.Name == "ProfileId").ToArray();
-            return allPropsFiltered;
+            if (!TypeProperties.ContainsKey(t))
+            {
+                var allProps = ReflectionHelpers.GetAllPropertiesForType(t);
+                var allPropsFiltered = allProps
+                  .Where(x => x.Name != nameof(ServerId) && x.Name != "Method")
+                  .OrderByDescending(x => x.Name == "ProfileId").ToArray();
+                TypeProperties.Add(t, allPropsFiltered);
+            }
+
+            return TypeProperties[t];
         }
-
-        //public virtual string Serialize()
-        //{
-        //    if (string.IsNullOrEmpty(ServerId))
-        //    {
-        //        throw new ArgumentNullException(nameof(ServerId));
-        //    }
-
-        //    if (string.IsNullOrEmpty(Method))
-        //    {
-        //        throw new ArgumentNullException(nameof(Method));
-        //    }
-
-        //    string result = null;
-        //    using (BinaryWriter binaryWriter = new(new MemoryStream()))
-        //    {
-        //        binaryWriter.WriteNonPrefixedString("SIT"); // 3
-        //        binaryWriter.WriteNonPrefixedString(ServerId); // pmc + 24 chars
-        //        binaryWriter.WriteNonPrefixedString(Method); // Unknown
-        //        binaryWriter.WriteNonPrefixedString("?");
-
-        //        var allPropsFiltered = GetPropertyInfos(this);
-
-        //        for (var i = 0; i < allPropsFiltered.Count(); i++)
-        //        {
-        //            var prop = allPropsFiltered[i];
-        //            binaryWriter.WriteNonPrefixedString(prop.GetValue(this).ToString());
-        //            if (i != allPropsFiltered.Count() - 1)
-        //                binaryWriter.WriteNonPrefixedString(",");
-        //        }
-        //        result = Encoding.UTF8.GetString(((MemoryStream)binaryWriter.BaseStream).ToArray());
-        //    }
-
-        //    return result;
-        //}
 
         public virtual byte[] Serialize()
         {
@@ -146,14 +101,9 @@ namespace SIT.Core.Coop.NetworkPacket
             return result;
         }
 
-        //public virtual byte[] SerializeCompressed()
-        //{
-        //    return Zlib.(Serialize(), ZlibCompression.Normal);
-        //}
-
         public virtual ISITPacket Deserialize(byte[] bytes)
         {
-            return this;
+            return this.DeserializePacketSIT(Encoding.UTF8.GetString(bytes));
         }
 
         public override string ToString()
@@ -173,7 +123,7 @@ namespace SIT.Core.Coop.NetworkPacket
 
     public static class SerializerExtensions
     {
-        private static Dictionary<Type, PropertyInfo[]> TypeToPropertyInfos = new Dictionary<Type, PropertyInfo[]>();
+        private static Dictionary<Type, PropertyInfo[]> TypeToPropertyInfos { get; } = new();
 
         static SerializerExtensions()
         {
@@ -232,10 +182,10 @@ namespace SIT.Core.Coop.NetworkPacket
                     default:
 
                         // Process an Enum
-                        if(prop.PropertyType.IsEnum)
+                        if (prop.PropertyType.IsEnum)
                             prop.SetValue(obj, Enum.Parse(prop.PropertyType, separatedPacket[index].ToString()));
                         // Unknown Object. What should we do with this?
-                        else 
+                        else
                             StayInTarkovHelperConstants.Logger.LogError($"{prop.Name} of type {prop.PropertyType.Name} could not be parsed by SIT Deserializer!");
                         break;
                 }

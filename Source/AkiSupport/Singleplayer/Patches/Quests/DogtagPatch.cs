@@ -1,6 +1,5 @@
 using EFT;
 using EFT.InventoryLogic;
-using SIT.Tarkov.Core;
 using System;
 using System.Reflection;
 
@@ -9,10 +8,10 @@ namespace StayInTarkov.AkiSupport.Singleplayer.Patches.Quests
     /// <summary>
     /// Credit SPT-Aki team
     /// Link: https://dev.sp-tarkov.com/SPT-AKI/Modules/src/branch/master/project/Aki.SinglePlayer/Patches/Quests/DogtagPatch.cs
+    /// Modified by: Paulov. Converted to use ReflectionHelpers
     /// </summary>
     public class DogtagPatch : ModulePatch
     {
-        private static BindingFlags _flags;
         private static PropertyInfo _getEquipmentProperty;
 
         static DogtagPatch()
@@ -20,13 +19,12 @@ namespace StayInTarkov.AkiSupport.Singleplayer.Patches.Quests
             _ = nameof(Equipment.GetSlot);
             _ = nameof(DamageInfo.Weapon);
 
-            _flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            _getEquipmentProperty = typeof(Player).GetProperty("Equipment", _flags);
+            _getEquipmentProperty = ReflectionHelpers.GetPropertyFromType(typeof(Player), "Equipment");
         }
 
         protected override MethodBase GetTargetMethod()
         {
-            return typeof(Player).GetMethod("OnBeenKilledByAggressor", _flags);
+            return ReflectionHelpers.GetMethodForType(typeof(Player), "OnBeenKilledByAggressor");
         }
 
         /// <summary>
@@ -92,6 +90,8 @@ namespace StayInTarkov.AkiSupport.Singleplayer.Patches.Quests
 
         private static void UpdateDogtagItemWithDeathDetails(Player __instance, Player aggressor, DamageInfo damageInfo, DogtagComponent itemComponent)
         {
+            itemComponent.Item.SpawnedInSession = true;
+
             var victimProfileInfo = __instance.Profile.Info;
 
             itemComponent.AccountId = __instance.Profile.AccountId;
@@ -100,7 +100,7 @@ namespace StayInTarkov.AkiSupport.Singleplayer.Patches.Quests
             itemComponent.Side = victimProfileInfo.Side;
             itemComponent.KillerName = aggressor.Profile.Info.Nickname;
             itemComponent.Time = DateTime.Now;
-            itemComponent.Status = "Killed by ";
+            itemComponent.Status = "Killed by";
             itemComponent.KillerAccountId = aggressor.Profile.AccountId;
             itemComponent.KillerProfileId = aggressor.Profile.Id;
             itemComponent.WeaponName = damageInfo.Weapon.Name;

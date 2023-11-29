@@ -1,13 +1,5 @@
-﻿using Comfort.Common;
-using EFT.UI;
-using Microsoft.Win32;
-using SIT.Tarkov.Core;
-using StayInTarkov;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
-using System.Text;
-using UnityEngine;
 
 namespace StayInTarkov.EssentialPatches
 {
@@ -17,13 +9,12 @@ namespace StayInTarkov.EssentialPatches
     /// </summary>
     public class LegalGameCheck
     {
-        public static string IllegalMessage { get; }
-            = StayInTarkovPlugin.LanguageDictionaryLoaded && StayInTarkovPlugin.LanguageDictionary.ContainsKey("ILLEGAL_MESSAGE")
-            ? StayInTarkovPlugin.LanguageDictionary["ILLEGAL_MESSAGE"]
-            : "Illegal game found. Please buy, install and launch the game once.";
-
+        
         public static bool Checked { get; private set; } = false;
+
         public static bool LegalGameFound { get; private set; } = false;
+
+        public static bool UsingLCRemover { get; private set; } = false;    
 
         public static bool LegalityCheck(BepInEx.Configuration.ConfigFile config)
         {
@@ -31,8 +22,8 @@ namespace StayInTarkov.EssentialPatches
                 return LegalGameFound;
 
             // SIT Legal Game Checker
-            var lcRemover = config.Bind<bool>("Debug Settings", "LC Remover", false).Value;
-            if (lcRemover)
+            UsingLCRemover = config.Bind<bool>("Debug Settings", "LC Remover", false).Value;
+            if (UsingLCRemover)
             {
                 LegalGameFound = true;
                 Checked = true;
@@ -60,10 +51,10 @@ namespace StayInTarkov.EssentialPatches
             {
                 StayInTarkovHelperConstants.Logger.LogError(ex.ToString());
             }
-                                 
+
             Checked = true;
             LegalGameFound = false;
-            StayInTarkovHelperConstants.Logger.LogError(IllegalMessage);
+            StayInTarkovHelperConstants.Logger.LogError(StayInTarkovPlugin.IllegalMessage);
             return false;
         }
 

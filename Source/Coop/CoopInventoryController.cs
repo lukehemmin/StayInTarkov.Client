@@ -2,13 +2,8 @@
 using Comfort.Common;
 using EFT;
 using EFT.InventoryLogic;
-using JetBrains.Annotations;
-using Newtonsoft.Json;
-using SIT.Coop.Core.Web;
-//using SIT.Core.Coop.ItemControllerPatches;
-using SIT.Core.Coop.NetworkPacket;
-using SIT.Tarkov.Core;
-using StayInTarkov;
+using StayInTarkov.Coop.ItemControllerPatches;
+using StayInTarkov.Coop.NetworkPacket;
 using StayInTarkov.Networking;
 using System;
 using System.Collections.Generic;
@@ -16,7 +11,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SIT.Core.Coop
+namespace StayInTarkov.Coop
 {
     internal class CoopInventoryController
         : EFT.Player.PlayerOwnerInventoryController, ICoopInventoryController
@@ -34,8 +29,8 @@ namespace SIT.Core.Coop
 			this.player = player;
         }
 
-        public override void AddDiscardLimits(Item rootItem, IEnumerable<ItemsCount> destroyedItems)
-        {
+            if (profile.ProfileId.StartsWith("pmc") && !IsDiscardLimitsFine(DiscardLimits))
+                base.ResetDiscardLimits();
         }
 
         public override void SubtractFromDiscardLimits(Item rootItem, IEnumerable<ItemsCount> destroyedItems)
@@ -578,7 +573,7 @@ namespace SIT.Core.Coop
             //ItemControllerHandler_Move_Patch.DisableForPlayer.Add(Profile.ProfileId);
 
             BepInLogger.LogInfo("UnloadMagazine");
-            UnloadMagazinePacket unloadMagazinePacket = new(Profile.ProfileId, magazine.Id, magazine.TemplateId);
+            ItemPlayerPacket unloadMagazinePacket = new(Profile.ProfileId, magazine.Id, magazine.TemplateId, "PlayerInventoryController_UnloadMagazine");
             var serialized = unloadMagazinePacket.Serialize();
 
             //if (AlreadySent.Contains(serialized))
@@ -610,10 +605,10 @@ namespace SIT.Core.Coop
             return base.TryThrowItem(item, callback, silent);
         }
 
-        public void ReceiveUnloadMagazineFromServer(UnloadMagazinePacket unloadMagazinePacket)
+        public void ReceiveUnloadMagazineFromServer(ItemPlayerPacket unloadMagazinePacket)
         {
             BepInLogger.LogInfo("ReceiveUnloadMagazineFromServer");
-            if (ItemFinder.TryFindItem(unloadMagazinePacket.MagazineId, out Item magazine))
+            if (ItemFinder.TryFindItem(unloadMagazinePacket.ItemId, out Item magazine))
             {
                 //ItemControllerHandler_Move_Patch.DisableForPlayer.Add(unloadMagazinePacket.ProfileId);
                 base.UnloadMagazine((MagazineClass)magazine);
@@ -621,11 +616,23 @@ namespace SIT.Core.Coop
 
             }
         }
-    }
 
+        public static bool IsDiscardLimitsFine(Dictionary<string, int> DiscardLimits)
+        {
+            return DiscardLimits != null
+                && DiscardLimits.Count > 0
+                && DiscardLimits.ContainsKey("5449016a4bdc2d6f028b456f") // Roubles, Value: 20000
+                && DiscardLimits.ContainsKey("5696686a4bdc2da3298b456a") // Dollars, Value: 0
+                && DiscardLimits.ContainsKey("569668774bdc2da2298b4568") // Euros, Value: 0
+                && DiscardLimits.ContainsKey("5448be9a4bdc2dfd2f8b456a") // RGD-5 Grenade, Value: 20
+                && DiscardLimits.ContainsKey("5710c24ad2720bc3458b45a3") // F-1 Grenade, Value: 20
+                && DiscardLimits.ContainsKey(DogtagComponent.BearDogtagsTemplate) // Value: 0
+                && DiscardLimits.ContainsKey(DogtagComponent.UsecDogtagsTemplate); // Value: 0
+        }
+    }
 
     public interface ICoopInventoryController
     {
-        public void ReceiveUnloadMagazineFromServer(UnloadMagazinePacket unloadMagazinePacket);
+        public void ReceiveUnloadMagazineFromServer(ItemPlayerPacket unloadMagazinePacket);
     }
 }

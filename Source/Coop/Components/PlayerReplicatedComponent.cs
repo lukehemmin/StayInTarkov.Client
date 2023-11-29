@@ -3,6 +3,11 @@ using BepInEx.Logging;
 using EFT;
 using EFT.HealthSystem;
 using EFT.InventoryLogic;
+using StayInTarkov.Coop;
+using StayInTarkov.Coop.Components;
+using StayInTarkov.Coop.NetworkPacket;
+using StayInTarkov.Coop.Player;
+using StayInTarkov.Coop.Web;
 using SIT.Coop.Core.Web;
 using SIT.Core.Coop;
 using SIT.Core.Coop.Components;
@@ -20,7 +25,7 @@ using System.Text;
 using UnityEngine;
 using static AHealthController<EFT.HealthSystem.ActiveHealthController.AbstractHealthEffect>;
 
-namespace SIT.Coop.Core.Player
+namespace StayInTarkov.Core.Player
 {
     /// <summary>
     /// Player Replicated Component is the Player/AI direct communication to the Server
@@ -90,7 +95,7 @@ namespace SIT.Coop.Core.Player
                         itemId = sb.ToString().Substring(0, 24);
                     }
 
-                    Item dogtag = Tarkov.Core.Spawners.ItemFactory.CreateItem(itemId, player.Side == EPlayerSide.Bear ? DogtagComponent.BearDogtagsTemplate : DogtagComponent.UsecDogtagsTemplate);
+                    Item dogtag = Spawners.ItemFactory.CreateItem(itemId, player.Side == EPlayerSide.Bear ? DogtagComponent.BearDogtagsTemplate : DogtagComponent.UsecDogtagsTemplate);
 
                     if (dogtag != null)
                     {
@@ -152,15 +157,6 @@ namespace SIT.Coop.Core.Player
             }
 
 
-            //var packetHandlerComponents = this.GetComponents<IPlayerPacketHandlerComponent>();
-            //if (packetHandlerComponents != null)
-            //{
-            //    packetHandlerComponents = packetHandlerComponents.Where(x => x.GetType() != typeof(PlayerReplicatedComponent)).ToArray();
-            //    foreach (var packetHandlerComponent in packetHandlerComponents)
-            //    {
-            //        packetHandlerComponent.ProcessPacket(packet);
-            //    }
-            //}
         }
 
         void ProcessPlayerState(Dictionary<string, object> packet)
@@ -433,20 +429,9 @@ namespace SIT.Coop.Core.Player
                 if (_playerMovePatch == null)
                     _playerMovePatch = (Player_Move_Patch)ModuleReplicationPatch.Patches["Move"];
 
-                _playerMovePatch?.ReplicatedMove(player
-                    , new PlayerMovePacket(player.ProfileId)
-                    {
-                        dX = ReplicatedDirection.Value.x,
-                        dY = ReplicatedDirection.Value.y,
-                        spd = ReplicatedMovementSpeed,
-                        //spr = ShouldSprint,
-                    }
-                  );
+                _playerMovePatch?.ReplicatedMove(player,
+                    new ReceivedPlayerMoveStruct(0, 0, 0, ReplicatedDirection.Value.x, ReplicatedDirection.Value.y, ReplicatedMovementSpeed));
             }
-
-
-
-
         }
 
         Player_Move_Patch _playerMovePatch = (Player_Move_Patch)ModuleReplicationPatch.Patches["Move"];
