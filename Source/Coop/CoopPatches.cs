@@ -1,5 +1,4 @@
 ﻿using BepInEx.Logging;
-using StayInTarkov.Coop.ItemControllerPatches;
 using StayInTarkov.Coop.LocalGame;
 using StayInTarkov.Coop.Matchmaker;
 using StayInTarkov.Coop.Player;

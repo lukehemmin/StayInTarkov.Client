@@ -1,15 +1,10 @@
-﻿using EFT;
-using Newtonsoft.Json;
-using SIT.Core.Coop.Components;
+﻿using Newtonsoft.Json;
 using SIT.Core.Coop.NetworkPacket;
-using SIT.Tarkov.Core;
+using StayInTarkov.Coop;
+using StayInTarkov.Coop.Components;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using UnityEngine;
 
 namespace SIT.Core.Coop.PacketHandlers
 {

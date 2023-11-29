@@ -10,13 +10,13 @@
 //using System.Collections.Generic;
 //using System.Reflection;
 //using System.Threading.Tasks;
-using System.Threading.Tasks;
+//using System.Threading.Tasks;
 //namespace SIT.Core.Coop.Player
 //{
 //    internal class PlayerInventoryController_UnloadMagazine_Patch : ModuleReplicationPatch
 //    {
 //        public override Type InstanceType => ReflectionHelpers.SearchForType("EFT.Player+PlayerInventoryController", false);
-        public override Type InstanceType => ReflectionHelpers.SearchForType("EFT.Player+PlayerInventoryController", false);
+        //public override Type InstanceType => ReflectionHelpers.SearchForType("EFT.Player+PlayerInventoryController", false);
 
 //        public override string MethodName => "PlayerInventoryController_UnloadMagazine";
 
@@ -45,7 +45,7 @@ using System.Threading.Tasks;
 //        {
 //            //GetLogger(typeof(PlayerInventoryController_UnloadMagazine_Patch)).LogInfo("Replicated");
 //            UnloadMagazinePacket itemPacket = new(null, null, null);
-            UnloadMagazinePacket itemPacket = new(null, null, null);
+            //UnloadMagazinePacket itemPacket = new(null, null, null);
 
 //            if (dict.ContainsKey("data"))
 //            {

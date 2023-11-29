@@ -1,4 +1,5 @@
 ﻿using JetBrains.Annotations;
+using StayInTarkov.Coop.NetworkPacket;
 using System;
 using System.Collections.Generic;
 using System.Linq;

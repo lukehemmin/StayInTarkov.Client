@@ -2,7 +2,8 @@
 using Comfort.Common;
 using EFT;
 using EFT.InventoryLogic;
-using StayInTarkov.Coop.ItemControllerPatches;
+using JetBrains.Annotations;
+using SIT.Core.Coop.NetworkPacket;
 using StayInTarkov.Coop.NetworkPacket;
 using StayInTarkov.Networking;
 using System;
@@ -27,10 +28,6 @@ namespace StayInTarkov.Coop
         {
             BepInLogger = BepInEx.Logging.Logger.CreateLogSource(nameof(CoopInventoryController));
 			this.player = player;
-        }
-
-            if (profile.ProfileId.StartsWith("pmc") && !IsDiscardLimitsFine(DiscardLimits))
-                base.ResetDiscardLimits();
         }
 
         public override void SubtractFromDiscardLimits(Item rootItem, IEnumerable<ItemsCount> destroyedItems)
