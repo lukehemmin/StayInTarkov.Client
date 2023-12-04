@@ -1,9 +1,13 @@
 ﻿using BepInEx.Logging;
+using Comfort.Common;
 using EFT;
 using EFT.HealthSystem;
 using EFT.Interactive;
 using EFT.InventoryLogic;
+using HarmonyLib.Tools;
+using RootMotion.FinalIK;
 using StayInTarkov.Coop.Matchmaker;
+using StayInTarkov.Coop.NetworkPacket.Lacyway;
 using StayInTarkov.Coop.Player;
 using StayInTarkov.Coop.Player.FirearmControllerPatches;
 using StayInTarkov.Coop.Web;
@@ -12,13 +16,17 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.UIElements;
+using static EFT.Player;
 
 namespace StayInTarkov.Coop
 {
     internal class CoopPlayer : LocalPlayer
     {
+        public static NetworkPacket.Lacyway.PrevFrame prevFrame = new();
         ManualLogSource BepInLogger { get; set; }
 
         public static async Task<LocalPlayer>
@@ -147,6 +155,8 @@ namespace StayInTarkov.Coop
                     SendDamageToAllClients(damageInfo, bodyPartType, absorbed, headSegment);
             }
         }
+
+        
 
         private void SendDamageToAllClients(DamageInfo damageInfo, EBodyPart bodyPartType, float absorbed, EHeadSegment? headSegment = null)
         {
@@ -332,13 +342,296 @@ namespace StayInTarkov.Coop
 
         public override void Move(Vector2 direction)
         {
-            base.Move(direction);
+            base.Move(direction);            
 
             var prc = GetComponent<PlayerReplicatedComponent>();
             if (prc.IsClientDrone)
-                return;
+                return;            
+        }
 
 
+        public override void SendHeadlightsPacket(bool isSilent)
+        {
+            LightsStates[] lightStates = _helmetLightControllers.Select(new Func<TacticalComboVisualController, LightsStates>(ClientPlayer.Class1383.class1383_0.method_0)).ToArray();
+            if (lightStates.Length > 0)
+            {
+                var myLogSource = new ManualLogSource("MyLogSource"); // The source name is shown in BepInEx log
+
+                // Register the source
+                BepInEx.Logging.Logger.Sources.Add(myLogSource);
+
+                myLogSource.LogInfo("ADDING LIGHTSTATE"); // Will print [Info: MyLogSource] Test
+
+                // Remove the source to free resources
+                BepInEx.Logging.Logger.Sources.Remove(myLogSource);
+                prevFrame.HelmetLightPacket = new()
+                {
+                    IsSilent = isSilent,
+                    LightsStates = lightStates
+                };
+            }
+        }
+
+        public override void OnPhraseTold(EPhraseTrigger @event, TaggedClip clip, TagBank bank, Speaker speaker)
+        {
+            base.OnPhraseTold(@event, clip, bank, speaker);
+            AddCommand(new PhraseCommandMessage()
+            {
+                PhraseCommand = @event,
+                PhraseId = clip.NetId
+            });            
+        }
+
+        public override void Proceed(bool withNetwork, Callback<IHandsController0> callback, bool scheduled = true)
+        {
+            base.Proceed(withNetwork, callback, scheduled);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.Empty
+            });
+        }
+
+        public override void Proceed(Weapon weapon, Callback<IFirearmHandsController> callback, bool scheduled = true)
+        {
+            base.Proceed(weapon, callback, scheduled);
+
+            bool fastHide = false;
+            EFT.Player.FirearmController firearmController;
+            if ((firearmController = _handsController as FirearmController) != null)
+            {
+                fastHide = firearmController.CheckForFastWeaponSwitch(weapon);
+            }
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(weapon);
+
+            AddCommand(new HandsController2()
+            {
+                FastHide = fastHide,
+                Armed = true,
+                HandControllerType = EHandsControllerType.Firearm,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(ThrowWeap throwWeap, Callback<IThrowableCallback> callback, bool scheduled = true)
+        {
+            base.Proceed(throwWeap, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(throwWeap);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.Grenade,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(Meds0 meds, EBodyPart bodyPart, Callback<IHandsController5> callback, int animationVariant, bool scheduled = true)
+        {
+            base.Proceed(meds, bodyPart, callback, animationVariant, scheduled);
+        }
+
+        public override void Proceed(KnifeComponent knife, Callback<IHandsController7> callback, bool scheduled = true)
+        {
+            base.Proceed(knife, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(knife.Item);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.Knife,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(KnifeComponent knife, Callback<IKnifeController> callback, bool scheduled = true)
+        {
+            base.Proceed(knife, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(knife.Item);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.Knife,
+                Item = Components
+            });
+        }
+
+        public override void Proceed<T>(Item item, Callback<IHandsController4> callback, bool scheduled = true)
+        {
+            base.Proceed<T>(item, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(item);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.UsableItem,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(Item item, Callback<IQuickUseController> callback, bool scheduled = true)
+        {
+            base.Proceed(item, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(item);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.QuickUseItem,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(FoodDrink foodDrink, float amount, Callback<IHandsController5> callback, int animationVariant, bool scheduled = true)
+        {
+            base.Proceed(foodDrink, amount, callback, animationVariant, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(foodDrink);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.UsableItem,
+                Item = Components
+            });
+        }
+
+        public override void Proceed(ThrowWeap throwWeap, Callback<IGrenadeQuickUseController> callback, bool scheduled = true)
+        {
+            base.Proceed(throwWeap, callback, scheduled);
+
+            var Components = Singleton<ItemFactory>.Instance.ItemToComponentialItem(throwWeap);
+
+            AddCommand(new HandsController2()
+            {
+                HandControllerType = EHandsControllerType.QuickGrenade,
+                Item = Components
+            });
+        }
+
+        public override void vmethod_3(EGesture gesture)
+        {
+            base.vmethod_3(gesture);
+            AddCommand(new GestureCommandMessage()
+            {
+                Gesture = gesture
+            });
+        }
+
+
+
+        //public override void vmethod_1(WorldInteractiveObject door, InteractionResult interactionResult)
+        //{
+        //    base.vmethod_1(door, interactionResult);
+
+        //    if (door != null)
+        //    {
+        //        AddCommand(new DoorInteractionMessage()
+        //        {
+        //            InteractionDoor = door.Id,
+        //            InteractionDoorResult = true,
+        //            InteractionDoorKey = (interactionResult is KeyInteractionResult result) ? result.Key.Item.Id : string.Empty
+        //        }); 
+        //    }
+        //}
+
+        public void AddCommand(ICommand command)
+        {
+            prevFrame.Commands.Add(command);
+        }
+
+        public override void LateUpdate()
+        {
+            base.LateUpdate();
+
+            prevFrame.MovementInfoPacket = new()
+            {
+                Position = new Vector3(x: Position.x + 2, y: Position.y, z: Position.z),
+                AnimatorStateIndex = CurrentAnimatorStateIndex,
+                PoseLevel = MovementContext.SmoothedPoseLevel,
+                CharacterMovementSpeed = MovementContext.ClampSpeed(MovementContext.SmoothedCharacterMovementSpeed),
+                Tilt = MovementContext.SmoothedTilt,
+                Step = MovementContext.Step,
+                BlindFire = MovementContext.BlindFire,
+                HeadRotation = HeadRotation,
+                Stamina = Physical.SerializationStruct,
+                Direction = MovementContext.MovementDirection,
+                IsGrounded = MovementContext.IsGrounded,
+                AimRotation = Rotation.y,
+                FallHeight = MovementContext.FallHeight,
+                FallTime = MovementContext.FreefallTime,
+                FootRotation = Rotation.x,
+                JumpHeight = MovementContext.JumpHeight,
+                MaxSpeed = MovementContext.MaxSpeed,
+                MovementDirection = MovementContext.MovementDirection,
+                PhysicalCondition = MovementContext.PhysicalCondition,
+                Pose = Pose,
+                SprintSpeed = MovementContext.SprintSpeed,
+                State = CurrentManagedState.Name,
+                Velocity = Velocity,
+                WeaponOverlap = ProceduralWeaponAnimation.TurnAway.OverlapValue
+            };
+
+            prevFrame.ReadFrame();
+
+            if (CoopGame.TestController != null)
+            {
+                GStruct256 nextModel = new()
+                {
+                    Movement = new()
+                    {
+                        AimRotation = prevFrame.MovementInfoPacket.AimRotation,
+                        BlindFire = prevFrame.MovementInfoPacket.BlindFire,
+                        BodyPosition = prevFrame.MovementInfoPacket.Position,
+                        FallHeight = prevFrame.MovementInfoPacket.FallHeight,
+                        FallTime = prevFrame.MovementInfoPacket.FallTime,
+                        FootRotation = Quaternion.AngleAxis(prevFrame.MovementInfoPacket.FootRotation, Vector3.up),
+                        HeadRotation = prevFrame.MovementInfoPacket.HeadRotation,
+                        IsGrounded = prevFrame.MovementInfoPacket.IsGrounded,
+                        JumpHeight = prevFrame.MovementInfoPacket.JumpHeight,
+                        MaxSpeed = prevFrame.MovementInfoPacket.MaxSpeed,
+                        MovementDirection = prevFrame.MovementInfoPacket.MovementDirection,
+                        MovementSpeed = prevFrame.MovementInfoPacket.CharacterMovementSpeed,
+                        PhysicalCondition = prevFrame.MovementInfoPacket.PhysicalCondition,
+                        Pose = prevFrame.MovementInfoPacket.Pose,
+                        PoseLevel = prevFrame.MovementInfoPacket.PoseLevel,
+                        SprintSpeed = prevFrame.MovementInfoPacket.SprintSpeed,
+                        State = prevFrame.MovementInfoPacket.State,
+                        StateAnimatorIndex = prevFrame.MovementInfoPacket.AnimatorStateIndex,
+                        Step = prevFrame.MovementInfoPacket.Step,
+                        Tilt = prevFrame.MovementInfoPacket.Tilt,
+                        Velocity = prevFrame.MovementInfoPacket.Velocity,
+                        InHandsObjectOverlap = prevFrame.MovementInfoPacket.WeaponOverlap
+                    },
+                    Commands = prevFrame.Commands.ToArray(),
+                    CommandsCount = prevFrame.Commands.Count,
+                    
+                };
+
+
+                var myLogSource = new ManualLogSource("MyLogSource"); // The source name is shown in BepInEx log
+
+                // Register the source
+                BepInEx.Logging.Logger.Sources.Add(myLogSource);
+
+                if (nextModel.Commands.Count() > 0)
+                {
+                    myLogSource.LogInfo(nextModel.Commands.Count() + " " + nextModel.CommandsCount); 
+                }
+
+                // Remove the source to free resources
+                BepInEx.Logging.Logger.Sources.Remove(myLogSource);
+
+                CoopGame.TestController.ManualUpdate();
+                CoopGame.TestController.Apply(nextModel);
+
+                prevFrame.ClearFrame();
+            }
+            else
+            {
+                Logger.LogInfo("LOOKHERE: Null");
+            }
         }
 
 
