@@ -4,26 +4,17 @@ using EFT;
 using EFT.HealthSystem;
 using EFT.Interactive;
 using EFT.InventoryLogic;
-using HarmonyLib.Tools;
 using RootMotion.FinalIK;
 using StayInTarkov.Coop.Matchmaker;
-using StayInTarkov.Coop.NetworkPacket.Lacyway;
 using StayInTarkov.Coop.Player;
-using StayInTarkov.Coop.Player.FirearmControllerPatches;
 using StayInTarkov.Coop.Web;
 using StayInTarkov.Core.Player;
-using StayInTarkov.Networking;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using UnityEngine;
-using UnityEngine.UIElements;
-using static EFT.Player;
 
 namespace StayInTarkov.Coop
 {
@@ -86,8 +77,8 @@ namespace StayInTarkov.Coop
             player.IsYourPlayer = isYourPlayer;
 
             InventoryController inventoryController = isYourPlayer && !isClientDrone
-                ? new CoopInventoryController(player, profile, true)
-                : new CoopInventoryControllerForClientDrone(player, profile, true);
+                ? new PlayerInventoryController(player, profile, true)
+                : new InventoryController(profile, true);
 
             if (questController == null && isYourPlayer)
             {
@@ -133,136 +124,136 @@ namespace StayInTarkov.Coop
         private HashSet<string> PreviousReceivedDamageInfoPackets { get; } = new();
         public bool IsFriendlyBot { get; internal set; }
 
-        public override void ApplyDamageInfo(DamageInfo damageInfo, EBodyPart bodyPartType, float absorbed, EHeadSegment? headSegment = null)
-        {
-            // Quick check?
-            if (PreviousDamageInfos.Any(x =>
-                x.Damage == damageInfo.Damage
-                && x.SourceId == damageInfo.SourceId
-                && x.Weapon != null && damageInfo.Weapon != null && x.Weapon.Id == damageInfo.Weapon.Id
-                && x.Player != null && damageInfo.Player != null && x.Player == damageInfo.Player
-                ))
-                return;
+        //public override void ApplyDamageInfo(DamageInfo damageInfo, EBodyPart bodyPartType, float absorbed, EHeadSegment? headSegment = null)
+        //{
+        //    // Quick check?
+        //    if (PreviousDamageInfos.Any(x =>
+        //        x.Damage == damageInfo.Damage
+        //        && x.SourceId == damageInfo.SourceId
+        //        && x.Weapon != null && damageInfo.Weapon != null && x.Weapon.Id == damageInfo.Weapon.Id
+        //        && x.Player != null && damageInfo.Player != null && x.Player == damageInfo.Player
+        //        ))
+        //        return;
 
-            PreviousDamageInfos.Add(damageInfo);
+        //    PreviousDamageInfos.Add(damageInfo);
 
-            //BepInLogger.LogInfo($"{nameof(ApplyDamageInfo)}:{this.ProfileId}:{DateTime.Now.ToString("T")}");
-            //base.ApplyDamageInfo(damageInfo, bodyPartType, absorbed, headSegment);
+        //    //BepInLogger.LogInfo($"{nameof(ApplyDamageInfo)}:{this.ProfileId}:{DateTime.Now.ToString("T")}");
+        //    //base.ApplyDamageInfo(damageInfo, bodyPartType, absorbed, headSegment);
 
-            if (CoopGameComponent.TryGetCoopGameComponent(out var coopGameComponent))
-            {
-                // If we are not using the Client Side Damage, then only run this on the server
-                if (MatchmakerAcceptPatches.IsServer && !coopGameComponent.SITConfig.useClientSideDamageModel)
-                    SendDamageToAllClients(damageInfo, bodyPartType, absorbed, headSegment);
-                else
-                    SendDamageToAllClients(damageInfo, bodyPartType, absorbed, headSegment);
-            }
-        }
+        //    if (CoopGameComponent.TryGetCoopGameComponent(out var coopGameComponent))
+        //    {
+        //        // If we are not using the Client Side Damage, then only run this on the server
+        //        if (MatchmakerAcceptPatches.IsServer && !coopGameComponent.SITConfig.useClientSideDamageModel)
+        //            SendDamageToAllClients(damageInfo, bodyPartType, absorbed, headSegment);
+        //        else
+        //            SendDamageToAllClients(damageInfo, bodyPartType, absorbed, headSegment);
+        //    }
+        //}
 
-        
 
-        private void SendDamageToAllClients(DamageInfo damageInfo, EBodyPart bodyPartType, float absorbed, EHeadSegment? headSegment = null)
-        {
-            Dictionary<string, object> packet = new();
-            var bodyPartColliderType = ((BodyPartCollider)damageInfo.HittedBallisticCollider).BodyPartColliderType;
-            damageInfo.HitCollider = null;
-            damageInfo.HittedBallisticCollider = null;
-            Dictionary<string, string> playerDict = new();
-            if (damageInfo.Player != null)
-            {
-                playerDict.Add("d.p.aid", damageInfo.Player.iPlayer.Profile.AccountId);
-                playerDict.Add("d.p.id", damageInfo.Player.iPlayer.ProfileId);
-            }
 
-            damageInfo.Player = null;
-            Dictionary<string, string> weaponDict = new();
+        //private void SendDamageToAllClients(DamageInfo damageInfo, EBodyPart bodyPartType, float absorbed, EHeadSegment? headSegment = null)
+        //{
+        //    Dictionary<string, object> packet = new();
+        //    var bodyPartColliderType = ((BodyPartCollider)damageInfo.HittedBallisticCollider).BodyPartColliderType;
+        //    damageInfo.HitCollider = null;
+        //    damageInfo.HittedBallisticCollider = null;
+        //    Dictionary<string, string> playerDict = new();
+        //    if (damageInfo.Player != null)
+        //    {
+        //        playerDict.Add("d.p.aid", damageInfo.Player.iPlayer.Profile.AccountId);
+        //        playerDict.Add("d.p.id", damageInfo.Player.iPlayer.ProfileId);
+        //    }
 
-            if (damageInfo.Weapon != null)
-            {
-                packet.Add("d.w.tpl", damageInfo.Weapon.TemplateId);
-                packet.Add("d.w.id", damageInfo.Weapon.Id);
-            }
-            damageInfo.Weapon = null;
+        //    damageInfo.Player = null;
+        //    Dictionary<string, string> weaponDict = new();
 
-            packet.Add("d", damageInfo.SITToJson());
-            packet.Add("d.p", playerDict);
-            packet.Add("d.w", weaponDict);
-            packet.Add("bpt", bodyPartType.ToString());
-            packet.Add("bpct", bodyPartColliderType.ToString());
-            packet.Add("ab", absorbed.ToString());
-            packet.Add("hs", headSegment.ToString());
-            packet.Add("m", "ApplyDamageInfo");
+        //    if (damageInfo.Weapon != null)
+        //    {
+        //        packet.Add("d.w.tpl", damageInfo.Weapon.TemplateId);
+        //        packet.Add("d.w.id", damageInfo.Weapon.Id);
+        //    }
+        //    damageInfo.Weapon = null;
 
-            // -----------------------------------------------------------
-            // An attempt to stop the same packet being sent multiple times
-            if (PreviousSentDamageInfoPackets.Contains(packet.ToJson()))
-                return;
+        //    packet.Add("d", damageInfo.SITToJson());
+        //    packet.Add("d.p", playerDict);
+        //    packet.Add("d.w", weaponDict);
+        //    packet.Add("bpt", bodyPartType.ToString());
+        //    packet.Add("bpct", bodyPartColliderType.ToString());
+        //    packet.Add("ab", absorbed.ToString());
+        //    packet.Add("hs", headSegment.ToString());
+        //    packet.Add("m", "ApplyDamageInfo");
 
-            PreviousSentDamageInfoPackets.Add(packet.ToJson());
-            // -----------------------------------------------------------
+        //    // -----------------------------------------------------------
+        //    // An attempt to stop the same packet being sent multiple times
+        //    if (PreviousSentDamageInfoPackets.Contains(packet.ToJson()))
+        //        return;
 
-            AkiBackendCommunicationCoop.PostLocalPlayerData(this, packet, true);
-        }
+        //    PreviousSentDamageInfoPackets.Add(packet.ToJson());
+        //    // -----------------------------------------------------------
 
-        public void ReceiveDamageFromServer(Dictionary<string, object> dict)
-        {
-            StartCoroutine(ReceiveDamageFromServerCR(dict));
-        }
+        //    AkiBackendCommunicationCoop.PostLocalPlayerData(this, packet, true);
+        //}
 
-        public IEnumerator ReceiveDamageFromServerCR(Dictionary<string, object> dict)
-        {
-            if (PreviousReceivedDamageInfoPackets.Contains(dict.ToJson()))
-                yield break;
+        //public void ReceiveDamageFromServer(Dictionary<string, object> dict)
+        //{
+        //    StartCoroutine(ReceiveDamageFromServerCR(dict));
+        //}
 
-            PreviousReceivedDamageInfoPackets.Add(dict.ToJson());
+        //public IEnumerator ReceiveDamageFromServerCR(Dictionary<string, object> dict)
+        //{
+        //    if (PreviousReceivedDamageInfoPackets.Contains(dict.ToJson()))
+        //        yield break;
 
-            //BepInLogger.LogDebug("ReceiveDamageFromServer");
-            //BepInLogger.LogDebug(dict.ToJson());
+        //    PreviousReceivedDamageInfoPackets.Add(dict.ToJson());
 
-            Enum.TryParse<EBodyPart>(dict["bpt"].ToString(), out var bodyPartType);
-            Enum.TryParse<EHeadSegment>(dict["hs"].ToString(), out var headSegment);
-            var absorbed = float.Parse(dict["ab"].ToString());
+        //    //BepInLogger.LogDebug("ReceiveDamageFromServer");
+        //    //BepInLogger.LogDebug(dict.ToJson());
 
-            var damageInfo = Player_ApplyShot_Patch.BuildDamageInfoFromPacket(dict);
-            damageInfo.HitCollider = Player_ApplyShot_Patch.GetCollider(this, damageInfo.BodyPartColliderType);
+        //    Enum.TryParse<EBodyPart>(dict["bpt"].ToString(), out var bodyPartType);
+        //    Enum.TryParse<EHeadSegment>(dict["hs"].ToString(), out var headSegment);
+        //    var absorbed = float.Parse(dict["ab"].ToString());
 
-            if (damageInfo.DamageType == EDamageType.Bullet && IsYourPlayer)
-            {
-                float handsShake = 0.05f;
-                float cameraShake = 0.4f;
-                float absorbedDamage = absorbed + damageInfo.Damage;
+        //    var damageInfo = Player_ApplyShot_Patch.BuildDamageInfoFromPacket(dict);
+        //    damageInfo.HitCollider = Player_ApplyShot_Patch.GetCollider(this, damageInfo.BodyPartColliderType);
 
-                switch (bodyPartType)
-                {
-                    case EBodyPart.Head:
-                        handsShake = 0.1f;
-                        cameraShake = 1.3f;
-                        break;
-                    case EBodyPart.LeftArm:
-                    case EBodyPart.RightArm:
-                        handsShake = 0.15f;
-                        cameraShake = 0.5f;
-                        break;
-                    case EBodyPart.LeftLeg:
-                    case EBodyPart.RightLeg:
-                        cameraShake = 0.3f;
-                        break;
-                }
+        //    if (damageInfo.DamageType == EDamageType.Bullet && IsYourPlayer)
+        //    {
+        //        float handsShake = 0.05f;
+        //        float cameraShake = 0.4f;
+        //        float absorbedDamage = absorbed + damageInfo.Damage;
 
-                ProceduralWeaponAnimation.ForceReact.AddForce(Mathf.Sqrt(absorbedDamage) / 10, handsShake, cameraShake);
-                if (FPSCamera.Instance.EffectsController.TryGetComponent(out FastBlur fastBlur))
-                {
-                    fastBlur.enabled = true;
-                    fastBlur.Hit(MovementContext.PhysicalConditionIs(EPhysicalCondition.OnPainkillers) ? absorbedDamage : (bodyPartType == EBodyPart.Head ? absorbedDamage * 6 : absorbedDamage * 3));
-                }
-            }
+        //        switch (bodyPartType)
+        //        {
+        //            case EBodyPart.Head:
+        //                handsShake = 0.1f;
+        //                cameraShake = 1.3f;
+        //                break;
+        //            case EBodyPart.LeftArm:
+        //            case EBodyPart.RightArm:
+        //                handsShake = 0.15f;
+        //                cameraShake = 0.5f;
+        //                break;
+        //            case EBodyPart.LeftLeg:
+        //            case EBodyPart.RightLeg:
+        //                cameraShake = 0.3f;
+        //                break;
+        //        }
 
-            base.ApplyDamageInfo(damageInfo, bodyPartType, absorbed, headSegment);
-            //base.ShotReactions(damageInfo, bodyPartType);
+        //        ProceduralWeaponAnimation.ForceReact.AddForce(Mathf.Sqrt(absorbedDamage) / 10, handsShake, cameraShake);
+        //        if (FPSCamera.Instance.EffectsController.TryGetComponent(out FastBlur fastBlur))
+        //        {
+        //            fastBlur.enabled = true;
+        //            fastBlur.Hit(MovementContext.PhysicalConditionIs(EPhysicalCondition.OnPainkillers) ? absorbedDamage : (bodyPartType == EBodyPart.Head ? absorbedDamage * 6 : absorbedDamage * 3));
+        //        }
+        //    }
 
-            yield break;
+        //    base.ApplyDamageInfo(damageInfo, bodyPartType, absorbed, headSegment);
+        //    //base.ShotReactions(damageInfo, bodyPartType);
 
-        }
+        //    yield break;
+
+        //}
 
         public override void OnSkillLevelChanged(AbstractSkill skill)
         {
@@ -305,7 +296,29 @@ namespace StayInTarkov.Coop
 
         public override Corpse CreateCorpse()
         {
+            float force = EFTHardSettings.Instance.HIT_FORCE *= (0.3f + 0.7f * Mathf.InverseLerp(50f, 20f, LastDamageInfo.PenetrationPower));
+
+            AddCommand(new DeathCommand()
+            {
+                CorpseImpulse = new()
+                {
+                    BodyPartColliderType = LastDamageInfo.BodyPartColliderType,
+                    Direction = LastDamageInfo.Direction,
+                    Force = force,
+                    Point = LastDamageInfo.HitPoint,
+                    OverallVelocity = LastDamageInfo.Direction
+                },
+                Inventory = Inventory,
+                LastDamagedBodyPart = LastDamagedBodyPart,
+                LastDamageType = LastDamageInfo.DamageType
+            });
+
             return base.CreateCorpse();
+        }
+
+        public override void OnBeenKilledByAggressor(IAIDetails aggressor, DamageInfo damageInfo, EBodyPart bodyPart, EDamageType lethalDamageType)
+        {
+            base.OnBeenKilledByAggressor(aggressor, damageInfo, bodyPart, lethalDamageType);
         }
 
         public override void OnItemAddedOrRemoved(Item item, ItemAddress location, bool added)
@@ -313,44 +326,14 @@ namespace StayInTarkov.Coop
             base.OnItemAddedOrRemoved(item, location, added);
         }
 
-        public override void Rotate(Vector2 deltaRotation, bool ignoreClamp = false)
-        {
-            if (!CoopGameComponent.TryGetCoopGameComponent(out var coopGC))
-            {
-                base.Rotate(deltaRotation, ignoreClamp);
-                return;
-            }
-
-            // If using Client Side Damage Model and Pressing the Trigger, send rotation to Server
-            if (coopGC.SITConfig.useClientSideDamageModel
-                && FirearmController_SetTriggerPressed_Patch.LastPress.ContainsKey(this.ProfileId)
-                && FirearmController_SetTriggerPressed_Patch.LastPress[this.ProfileId] == true)
-            {
-                // Send to Server
-
-            }
-
-            base.Rotate(deltaRotation, ignoreClamp);
-        }
-
-        //public override void LateUpdate()
+        //public override void Move(Vector2 direction)
         //{
-        //    //base.LateUpdate();
+        //    base.Move(direction);
+
+        //    //var prc = GetComponent<PlayerReplicatedComponent>();
+        //    //if (prc.IsClientDrone)
+        //    //    return;
         //}
-
-        //public override void ComplexLateUpdate(EUpdateQueue queue, float deltaTime)
-        //{
-        //    //base.ComplexLateUpdate(queue, deltaTime);
-        //}
-
-        public override void Move(Vector2 direction)
-        {
-            base.Move(direction);            
-
-            var prc = GetComponent<PlayerReplicatedComponent>();
-            if (prc.IsClientDrone)
-                return;            
-        }
 
 
         public override void SendHeadlightsPacket(bool isSilent)
@@ -358,20 +341,16 @@ namespace StayInTarkov.Coop
             LightsStates[] lightStates = _helmetLightControllers.Select(new Func<TacticalComboVisualController, LightsStates>(ClientPlayer.Class1383.class1383_0.method_0)).ToArray();
             if (lightStates.Length > 0)
             {
-                var myLogSource = new ManualLogSource("MyLogSource"); // The source name is shown in BepInEx log
-
-                // Register the source
-                BepInEx.Logging.Logger.Sources.Add(myLogSource);
-
-                myLogSource.LogInfo("ADDING LIGHTSTATE"); // Will print [Info: MyLogSource] Test
-
-                // Remove the source to free resources
-                BepInEx.Logging.Logger.Sources.Remove(myLogSource);
-                prevFrame.HelmetLightPacket = new()
+                foreach (var light in lightStates)
                 {
-                    IsSilent = isSilent,
-                    LightsStates = lightStates
-                };
+                    AddCommand(new Command()
+                    {
+                        SetSilently = false,
+                        ID = light.Id,
+                        LightMode = light.LightMode,
+                        State = light.IsActive
+                    });
+                }
             }
         }
 
@@ -382,7 +361,7 @@ namespace StayInTarkov.Coop
             {
                 PhraseCommand = @event,
                 PhraseId = clip.NetId
-            });            
+            });
         }
 
         public override void Proceed(bool withNetwork, Callback<IHandsController0> callback, bool scheduled = true)
@@ -391,7 +370,8 @@ namespace StayInTarkov.Coop
 
             AddCommand(new HandsController2()
             {
-                HandControllerType = EHandsControllerType.Empty
+                HandControllerType = EHandsControllerType.Empty,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -400,7 +380,7 @@ namespace StayInTarkov.Coop
             base.Proceed(weapon, callback, scheduled);
 
             bool fastHide = false;
-            EFT.Player.FirearmController firearmController;
+            FirearmController firearmController;
             if ((firearmController = _handsController as FirearmController) != null)
             {
                 fastHide = firearmController.CheckForFastWeaponSwitch(weapon);
@@ -411,9 +391,10 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 FastHide = fastHide,
-                Armed = true,
+                Armed = weapon.Armed,
                 HandControllerType = EHandsControllerType.Firearm,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -426,7 +407,9 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.Grenade,
-                Item = Components
+                Item = Components,
+                FastHide = true,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -439,7 +422,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.Meds,
-                Item = Components                
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
 
 
@@ -454,7 +438,9 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.Knife,
-                Item = Components
+                Item = Components,
+                FastHide = true,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -467,7 +453,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.Knife,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -480,7 +467,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.UsableItem,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -493,7 +481,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.QuickUseItem,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -506,7 +495,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.Meds,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -519,7 +509,8 @@ namespace StayInTarkov.Coop
             AddCommand(new HandsController2()
             {
                 HandControllerType = EHandsControllerType.QuickGrenade,
-                Item = Components
+                Item = Components,
+                DrawAnimationSpeedMultiplier = 1
             });
         }
 
@@ -532,21 +523,35 @@ namespace StayInTarkov.Coop
             });
         }
 
+        public override void Interact(IItemOwner loot, Callback callback)
+        {
+            base.Interact(loot, callback);
 
+
+        }
+
+        //public override void vmethod_0(WorldInteractiveObject interactiveObject, InteractionResult interactionResult, Action callback)
+        //{
+        //    base.vmethod_0(interactiveObject, interactionResult, callback);
+
+        //    AddCommand(new DoorInteractionMessage()
+        //    {
+        //        InteractionDoor = interactiveObject.Id,
+        //        InteractionDoorKey = (interactionResult is KeyInteractionResult) ? ((KeyInteractionResult)interactionResult).Key.Item.Id : string.Empty,
+        //        InteractionDoorResult = false
+        //    });
+        //}
 
         //public override void vmethod_1(WorldInteractiveObject door, InteractionResult interactionResult)
         //{
         //    base.vmethod_1(door, interactionResult);
 
-        //    if (door != null)
+        //    AddCommand(new DoorInteractionMessage()
         //    {
-        //        AddCommand(new DoorInteractionMessage()
-        //        {
-        //            InteractionDoor = door.Id,
-        //            InteractionDoorResult = true,
-        //            InteractionDoorKey = (interactionResult is KeyInteractionResult result) ? result.Key.Item.Id : string.Empty
-        //        }); 
-        //    }
+        //        InteractionDoor = door.Id,
+        //        InteractionDoorKey = (interactionResult is KeyInteractionResult) ? ((KeyInteractionResult)interactionResult).Key.Item.Id : string.Empty,
+        //        InteractionDoorResult = true
+        //    });
         //}
 
         public void AddCommand(ICommand command)
@@ -560,7 +565,7 @@ namespace StayInTarkov.Coop
 
             prevFrame.MovementInfoPacket = new()
             {
-                Position = new Vector3(x: Position.x + 2, y: Position.y, z: Position.z),
+                Position = new Vector3(x: Position.x, y: Position.y, z: Position.z),
                 AnimatorStateIndex = CurrentAnimatorStateIndex,
                 PoseLevel = MovementContext.SmoothedPoseLevel,
                 CharacterMovementSpeed = MovementContext.ClampSpeed(MovementContext.SmoothedCharacterMovementSpeed),
@@ -586,7 +591,17 @@ namespace StayInTarkov.Coop
                 WeaponOverlap = ProceduralWeaponAnimation.TurnAway.OverlapValue
             };
 
-            prevFrame.ReadFrame();
+            // This needs to be sent during an event instead...
+            AddCommand(new PhysicalParametersCommandMessage()
+            {
+                BreathIsAudible = Physical.BreathIsAudible,
+                IsHeavyBreathing = Physical.Exhausted,
+                MinStepSound = Physical.MinStepSound,
+                Overweight = Physical.Overweight,
+                SoundRadius = Physical.SoundRadius,
+                TransitionSpeed = Physical.TransitionSpeed,
+                WalkOverweight = Physical.WalkOverweight
+            });
 
             if (this != null)
             {
@@ -617,14 +632,12 @@ namespace StayInTarkov.Coop
                         Velocity = prevFrame.MovementInfoPacket.Velocity,
                         InHandsObjectOverlap = prevFrame.MovementInfoPacket.WeaponOverlap
                     },
-                    Commands = prevFrame.Commands.ToArray(),
+                    Commands = [.. prevFrame.Commands],
                     CommandsCount = prevFrame.Commands.Count,
-                    RemoteTime = Time.time
+                    RemoteTime = Time.deltaTime
                 };
 
-                
-
-                var test = NetworkPacket.Lacyway.PrevFrame.Serialize(prevFrame.Commands, prevFrame.MovementInfoPacket);
+                var test = NetworkPacket.Lacyway.PrevFrame.Serialize(prevFrame.MovementInfoPacket, prevFrame.Commands);
 
                 Dictionary<string, object> dictionary = new()
                 {
@@ -633,23 +646,6 @@ namespace StayInTarkov.Coop
                 };
 
                 AkiBackendCommunicationCoop.PostLocalPlayerData(this, dictionary);
-                //Singleton<GameWorld>.Instance.allObservedPlayersByID.First().Value.ObservedPlayerController.Apply(nextModel);
-
-                var myLogSource = new ManualLogSource("MyLogSource"); // The source name is shown in BepInEx log
-
-                // Register the source
-                BepInEx.Logging.Logger.Sources.Add(myLogSource);
-
-                if (nextModel.Commands.Count() > 0)
-                {
-                    myLogSource.LogInfo(nextModel.Commands.Count() + " " + nextModel.CommandsCount); 
-                }
-
-                // Remove the source to free resources
-                BepInEx.Logging.Logger.Sources.Remove(myLogSource);
-
-                //CoopGame.TestController.ManualUpdate();
-                //CoopGame.TestController.Apply(nextModel);
 
                 prevFrame.ClearFrame();
             }
@@ -662,7 +658,7 @@ namespace StayInTarkov.Coop
 
         public override void OnDestroy()
         {
-            BepInLogger.LogDebug("OnDestroy()");
+            //BepInLogger.LogDebug("OnDestroy()");
             base.OnDestroy();
         }
 

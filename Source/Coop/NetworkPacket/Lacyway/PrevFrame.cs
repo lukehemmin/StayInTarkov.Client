@@ -1,22 +1,17 @@
 ﻿using BepInEx.Logging;
-using EFT.Animations;
 using EFT;
-using EFT.InventoryLogic;
-using EFT.NetworkPackets;
-using HarmonyLib.Tools;
-using Sirenix.Serialization;
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static Physical;
-using UnityEngine.Tilemaps;
-using UnityEngine.UIElements;
 using UnityEngine;
 
-// GClass2179
+/*
+ * 
+ * GClass2179 - List of all Commands to be sent
+ * GStruct316 - All network packets for HealthController
+ * Made by Lacyway for the Stay In Tarkov Project
+ * Please give proper credit if you are using this code
+ * 
+ * */
 
 namespace StayInTarkov.Coop.NetworkPacket.Lacyway
 {
@@ -30,30 +25,14 @@ namespace StayInTarkov.Coop.NetworkPacket.Lacyway
 
         public MovementInfoPacket MovementInfoPacket { get; set; }
         public HelmetLightPacket HelmetLightPacket { get; set; }
-        public List<ICommand> Commands { get; set; } = new List<ICommand>();
-
-        public void ReadFrame()
-        {
-            if (HelmetLightPacket.LightsStates != null)
-            {
-                Commands.Add(new Command()
-                {
-                    SetSilently = HelmetLightPacket.IsSilent,
-                    ID = HelmetLightPacket.LightsStates[0].Id,
-                    LightMode = HelmetLightPacket.LightsStates[0].LightMode,
-                    State = HelmetLightPacket.LightsStates[0].IsActive
-                });
-                Logger.LogInfo("Added HLP!");
-                HelmetLightPacket = default;
-            }
-        }
+        public List<ICommand> Commands { get; set; } = [];
 
         public void ClearFrame()
         {
             Commands.Clear();
         }
 
-        public static byte[] Serialize(List<ICommand> commands, MovementInfoPacket movementInfoPacket)
+        public static byte[] Serialize(MovementInfoPacket movementInfoPacket, List<ICommand> commands)
         {
             // AimRotation and FootRotation
 
@@ -125,7 +104,7 @@ namespace StayInTarkov.Coop.NetworkPacket.Lacyway
 
             GClass1035 reader = new(package);
 
-            GStruct256 nextModel = new();
+            GStruct256 nextModel = new();            
 
             // Position
             nextModel.Movement.BodyPosition = reader.ReadVector3();
@@ -160,7 +139,7 @@ namespace StayInTarkov.Coop.NetworkPacket.Lacyway
             // SprintSpeed
             nextModel.Movement.SprintSpeed = GClass1048.ScaleByteToFloat(reader.ReadByte(), 0f, 1f);
             // MaxSpeed
-            nextModel.Movement.MaxSpeed = GClass1048.ScaleByteToFloat(reader.ReadByte(), 0f, 1f);            
+            nextModel.Movement.MaxSpeed = GClass1048.ScaleByteToFloat(reader.ReadByte(), 0f, 1f);
             // InHandsObjectOverlap
             nextModel.Movement.InHandsObjectOverlap = GClass1048.ScaleByteToFloat(reader.ReadByte(), 0f, 1f);
             // IsGrounded
@@ -181,13 +160,16 @@ namespace StayInTarkov.Coop.NetworkPacket.Lacyway
             // FootRotation
             nextModel.Movement.FootRotation = Quaternion.AngleAxis(rotation.x, Vector3.up);
 
+            nextModel.RemoteTime = Time.deltaTime;
+            nextModel.IsNeedProcessMovement = true;
+
+            EFT.UI.ConsoleScreen.Log(nextModel.Movement.State.ToString());
+
             var commands = GClass2179.CreateInstance();
             commands.Deserialize(reader);
-            
+
             nextModel.Commands = commands.ToArray();
             nextModel.CommandsCount = commands.Count();
-
-            EFT.UI.ConsoleScreen.Log(nextModel.Movement.State + " " +  nextModel.Movement.AimRotation + " " + nextModel.Movement.FootRotation + " CommandsCount: " + nextModel.CommandsCount);
 
             return nextModel;
         }

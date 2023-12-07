@@ -4,6 +4,7 @@ using Comfort.Common;
 using EFT;
 using EFT.HealthSystem;
 using EFT.InventoryLogic;
+using EFT.NextObservedPlayer;
 using StayInTarkov.Coop;
 using StayInTarkov.Coop.Components;
 using StayInTarkov.Coop.NetworkPacket;
@@ -30,12 +31,13 @@ namespace StayInTarkov.Core.Player
         //internal ConcurrentQueue<Dictionary<string, object>> QueuedPackets { get; } = new();
         internal Dictionary<string, object> LastMovementPacket { get; set; }
         internal EFT.LocalPlayer player { get; set; }
+        internal ObservedPlayerView playerView { get; set; }
         public bool IsMyPlayer { get { return player != null && player.IsYourPlayer; } }
         public bool IsClientDrone { get; internal set; }
 
-        private float PoseLevelDesired { get; set; } = 1;
-        public float ReplicatedMovementSpeed { get; set; }
-        private float PoseLevelSmoothed { get; set; } = 1;
+        //private float PoseLevelDesired { get; set; } = 1;
+        //public float ReplicatedMovementSpeed { get; set; }
+        //private float PoseLevelSmoothed { get; set; } = 1;
 
         private HashSet<IPlayerPacketHandlerComponent> PacketHandlerComponents { get; } = new();
 
@@ -56,46 +58,103 @@ namespace StayInTarkov.Core.Player
 
             if (player == null)
             {
-                player = this.GetComponentInParent<EFT.LocalPlayer>();
-                StayInTarkovHelperConstants.Logger.LogDebug($"PlayerReplicatedComponent:Start:Set Player to {player}");
+                if (GetComponentInParent<LocalPlayer>() != null)
+                {
+                    player = GetComponentInParent<LocalPlayer>();
+                    StayInTarkovHelperConstants.Logger.LogDebug($"PlayerReplicatedComponent:Start:Set Player to {player}"); 
+                }
             }
 
-            if (player.ProfileId.StartsWith("pmc"))
+            Logger.LogInfo("PRC Start: GetComponent");
+            if (playerView == null)
             {
-                if (ReflectionHelpers.GetDogtagItem(player) == null)
+                if (GetComponentInParent<ObservedPlayerView>() != null)
                 {
-                    if (!CoopGameComponent.TryGetCoopGameComponent(out CoopGameComponent coopGameComponent))
-                        return;
+                    playerView = GetComponentInParent<ObservedPlayerView>();
+                    StayInTarkovHelperConstants.Logger.LogDebug($"PlayerReplicatedComponent:Start:Set PlayerView to {playerView}"); 
+                }
+            }
 
-                    Slot dogtagSlot = player.Inventory.Equipment.GetSlot(EquipmentSlot.Dogtag);
-                    if (dogtagSlot == null)
-                        return;
-
-                    string itemId = "";
-                    using (SHA256 sha256 = SHA256.Create())
+            Logger.LogInfo("PRC Start: DogTag");
+            if (playerView != null)
+            {
+                if (playerView.ProfileId.StartsWith("pmc"))
+                {
+                    if (ReflectionHelpers.GetDogtagItemView(playerView.ObservedPlayerController.InventoryController.Inventory) == null)
                     {
-                        StringBuilder sb = new();
-
-                        byte[] hashes = sha256.ComputeHash(Encoding.UTF8.GetBytes(coopGameComponent.ServerId + player.ProfileId + coopGameComponent.Timestamp));
-                        for (int i = 0; i < hashes.Length; i++)
-                            sb.Append(hashes[i].ToString("x2"));
-
-                        itemId = sb.ToString().Substring(0, 24);
-                    }
-
-                    Item dogtag = Spawners.ItemFactory.CreateItem(itemId, player.Side == EPlayerSide.Bear ? DogtagComponent.BearDogtagsTemplate : DogtagComponent.UsecDogtagsTemplate);
-
-                    if (dogtag != null)
-                    {
-                        if (!dogtag.TryGetItemComponent(out DogtagComponent dogtagComponent))
+                        if (!CoopGameComponent.TryGetCoopGameComponent(out CoopGameComponent coopGameComponent))
                             return;
 
-                        dogtagComponent.GroupId = player.Profile.Info.GroupId;
-                        dogtagSlot.AddWithoutRestrictions(dogtag);
+                        Slot dogtagSlot = playerView.ObservedPlayerController.InventoryController.Inventory.Equipment.GetSlot(EquipmentSlot.Dogtag);
+                        if (dogtagSlot == null)
+                            return;
+
+                        string itemId = "";
+                        using (SHA256 sha256 = SHA256.Create())
+                        {
+                            StringBuilder sb = new();
+
+                            byte[] hashes = sha256.ComputeHash(Encoding.UTF8.GetBytes(coopGameComponent.ServerId + playerView.ProfileId + coopGameComponent.Timestamp));
+                            for (int i = 0; i < hashes.Length; i++)
+                                sb.Append(hashes[i].ToString("x2"));
+
+                            itemId = sb.ToString().Substring(0, 24);
+                        }
+
+                        Item dogtag = Spawners.ItemFactory.CreateItem(itemId, playerView.Side == EPlayerSide.Bear ? DogtagComponent.BearDogtagsTemplate : DogtagComponent.UsecDogtagsTemplate);
+
+                        if (dogtag != null)
+                        {
+                            if (!dogtag.TryGetItemComponent(out DogtagComponent dogtagComponent))
+                                return;
+
+                            dogtagComponent.GroupId = playerView.Profile.Info.GroupId;
+                            dogtagSlot.AddWithoutRestrictions(dogtag);
+                        }
+                    }
+                } 
+            }
+
+            if (player != null)
+            {
+                if (player.ProfileId.StartsWith("pmc"))
+                {
+                    if (ReflectionHelpers.GetDogtagItem(player) == null)
+                    {
+                        if (!CoopGameComponent.TryGetCoopGameComponent(out CoopGameComponent coopGameComponent))
+                            return;
+
+                        Slot dogtagSlot = player.Inventory.Equipment.GetSlot(EquipmentSlot.Dogtag);
+                        if (dogtagSlot == null)
+                            return;
+
+                        string itemId = "";
+                        using (SHA256 sha256 = SHA256.Create())
+                        {
+                            StringBuilder sb = new();
+
+                            byte[] hashes = sha256.ComputeHash(Encoding.UTF8.GetBytes(coopGameComponent.ServerId + player.ProfileId + coopGameComponent.Timestamp));
+                            for (int i = 0; i < hashes.Length; i++)
+                                sb.Append(hashes[i].ToString("x2"));
+
+                            itemId = sb.ToString().Substring(0, 24);
+                        }
+
+                        Item dogtag = Spawners.ItemFactory.CreateItem(itemId, player.Side == EPlayerSide.Bear ? DogtagComponent.BearDogtagsTemplate : DogtagComponent.UsecDogtagsTemplate);
+
+                        if (dogtag != null)
+                        {
+                            if (!dogtag.TryGetItemComponent(out DogtagComponent dogtagComponent))
+                                return;
+
+                            dogtagComponent.GroupId = player.Profile.Info.GroupId;
+                            dogtagSlot.AddWithoutRestrictions(dogtag);
+                        }
                     }
                 }
             }
 
+            Logger.LogInfo("PRC Start: PacketHandlers");
             //GCHelpers.EnableGC();
 
             // TODO: Add PacketHandlerComponents here. Possibly via Reflection?
@@ -126,17 +185,21 @@ namespace StayInTarkov.Core.Player
 
             var method = packet["m"].ToString();            
 
-            ProcessPlayerState(packet);
+            //ProcessPlayerState(packet);
 
             if (method == "test")
             {
                 var testasd = packet["model"].ToString().SITParseJson<byte[]>();
-                GStruct256 nextModel = Coop.NetworkPacket.Lacyway.PrevFrame.Deserialize(testasd);
-                EFT.UI.ConsoleScreen.Log(nextModel.Movement.MovementSpeed.ToString());
-                foreach (var player in Singleton<GameWorld>.Instance.allObservedPlayersByID)
-                {
-                    player.Value.ObservedPlayerController.Apply(nextModel);
-                }
+                GStruct256 nextMove = Coop.NetworkPacket.Lacyway.PrevFrame.Deserialize(testasd);
+
+                //Singleton<GameWorld>.Instance.allObservedPlayersByID.Where(x => x.Key == kvp.ElementAt(0).Key).First().Value.ObservedPlayerController.Apply(kvp.ElementAt(0).Value);
+
+                playerView.ObservedPlayerController.Apply(nextMove);
+
+                //foreach (var player in Singleton<GameWorld>.Instance.allObservedPlayersByID)
+                //{
+                //    player.Value.ObservedPlayerController.Apply(nextModel);
+                //}
             }
 
             // Iterate through the PacketHandlerComponents
@@ -173,36 +236,36 @@ namespace StayInTarkov.Core.Player
 
             {
                 // Pose
-                float poseLevel = float.Parse(packet["pose"].ToString());
-                PoseLevelDesired = poseLevel;
+                //float poseLevel = float.Parse(packet["pose"].ToString());
+                //PoseLevelDesired = poseLevel;
 
                 // Speed
-                if (packet.ContainsKey("spd"))
-                {
-                    ReplicatedMovementSpeed = float.Parse(packet["spd"].ToString());
-                    player.CurrentManagedState.ChangeSpeed(ReplicatedMovementSpeed);
-                }
+                //if (packet.ContainsKey("spd"))
+                //{
+                //    ReplicatedMovementSpeed = float.Parse(packet["spd"].ToString());
+                //    player.CurrentManagedState.ChangeSpeed(ReplicatedMovementSpeed);
+                //}
                 // ------------------------------------------------------
                 // Prone -- With fixes. Thanks @TehFl0w
-                ProcessPlayerStateProne(packet);
+                //ProcessPlayerStateProne(packet);
 
                 // Rotation
-                if (packet.ContainsKey("rX") && packet.ContainsKey("rY"))
-                {
-                    Vector2 packetRotation = new(
-                float.Parse(packet["rX"].ToString())
-                , float.Parse(packet["rY"].ToString())
-                );
-                    //player.Rotation = packetRotation;
-                    ReplicatedRotation = packetRotation;
-                }
+                //if (packet.ContainsKey("rX") && packet.ContainsKey("rY"))
+                //{
+                //    Vector2 packetRotation = new(
+                //float.Parse(packet["rX"].ToString())
+                //, float.Parse(packet["rY"].ToString())
+                //);
+                //    //player.Rotation = packetRotation;
+                //    ReplicatedRotation = packetRotation;
+                //}
 
-                if (packet.ContainsKey("spr"))
-                {
-                    // Sprint
-                    ShouldSprint = bool.Parse(packet["spr"].ToString());
-                    //ProcessPlayerStateSprint(packet);
-                }
+                //if (packet.ContainsKey("spr"))
+                //{
+                //    // Sprint
+                //    ShouldSprint = bool.Parse(packet["spr"].ToString());
+                //    //ProcessPlayerStateSprint(packet);
+                //}
 
                 // Position
                 Vector3 packetPosition = new(
@@ -211,7 +274,7 @@ namespace StayInTarkov.Core.Player
                     , float.Parse(packet["pZ"].ToString())
                     );
 
-                ReplicatedPosition = packetPosition;
+                //plicatedPosition = packetPosition;
 
                 // Move / Direction
                 if (packet.ContainsKey("dX") && packet.ContainsKey("dY"))
@@ -220,24 +283,24 @@ namespace StayInTarkov.Core.Player
                     float.Parse(packet["dX"].ToString())
                     , float.Parse(packet["dY"].ToString())
                     );
-                    ReplicatedDirection = packetDirection;
+                    //plicatedDirection = packetDirection;
                 }
                 else
                 {
-                    ReplicatedDirection = null;
+                    //plicatedDirection = null;
                 }
 
-                if (packet.ContainsKey("tilt"))
-                {
-                    var tilt = float.Parse(packet["tilt"].ToString());
-                    player.MovementContext.SetTilt(tilt);
-                }
+                //if (packet.ContainsKey("tilt"))
+                //{
+                //    var tilt = float.Parse(packet["tilt"].ToString());
+                //    player.MovementContext.SetTilt(tilt);
+                //}
 
 
                 if (packet.ContainsKey("dX") && packet.ContainsKey("dY") && packet.ContainsKey("spr") && packet.ContainsKey("spd"))
                 {
                     // Force Rotation
-                    player.Rotation = ReplicatedRotation.Value;
+                    //ayer.Rotation = ReplicatedRotation.Value;
                     //var playerMovePatch = (Player_Move_Patch)ModuleReplicationPatch.Patches["Move"];
                     //playerMovePatch?.Replicated(player, packet);
                 }
@@ -287,94 +350,94 @@ namespace StayInTarkov.Core.Player
         public bool ShouldSprint { get; set; }
         private bool isSprinting;
 
-        public bool IsSprinting
-        {
-            get { return isSprinting || player.IsSprintEnabled; }
-            set { isSprinting = value; }
-        }
+        //public bool IsSprinting
+        //{
+        //    get { return isSprinting || player.IsSprintEnabled; }
+        //    set { isSprinting = value; }
+        //}
 
 
-        private void ProcessPlayerStateSprint(Dictionary<string, object> packet)
-        {
-            ShouldSprint = bool.Parse(packet["spr"].ToString());
+        //private void ProcessPlayerStateSprint(Dictionary<string, object> packet)
+        //{
+        //    ShouldSprint = bool.Parse(packet["spr"].ToString());
 
-            //    // If we are requesting to sprint but we are alreadying sprinting, don't do anything
-            //    //if (ShouldSprint && IsSprinting)
-            //    //    return;
+        //    //    // If we are requesting to sprint but we are alreadying sprinting, don't do anything
+        //    //    //if (ShouldSprint && IsSprinting)
+        //    //    //    return;
 
-            //    if (ShouldSprint)
-            //    {
-            //        // normalize the movement direction. sprint requires 0 on the Y.
-            //        player.MovementContext.MovementDirection = new Vector2(1, 0);
-            //        player.MovementContext.PlayerAnimatorEnableSprint(true);
-            //        //player.Physical.Sprint(true);
-            //        //player.Physical.StaminaCapacity = 100;
-            //        //player.Physical.StaminaRestoreRate = 100;
-            //        IsSprinting = true;
-            //    }
-            //    else
-            //    {
-            //        //player.Physical.Sprint(false);
-            //        IsSprinting = false;
-            //        player.MovementContext.PlayerAnimatorEnableSprint(false);
+        //    //    if (ShouldSprint)
+        //    //    {
+        //    //        // normalize the movement direction. sprint requires 0 on the Y.
+        //    //        player.MovementContext.MovementDirection = new Vector2(1, 0);
+        //    //        player.MovementContext.PlayerAnimatorEnableSprint(true);
+        //    //        //player.Physical.Sprint(true);
+        //    //        //player.Physical.StaminaCapacity = 100;
+        //    //        //player.Physical.StaminaRestoreRate = 100;
+        //    //        IsSprinting = true;
+        //    //    }
+        //    //    else
+        //    //    {
+        //    //        //player.Physical.Sprint(false);
+        //    //        IsSprinting = false;
+        //    //        player.MovementContext.PlayerAnimatorEnableSprint(false);
 
-            //}
-        }
+        //    //}
+        //}
 
-        private void ProcessPlayerStateProne(Dictionary<string, object> packet)
-        {
-            bool prone = bool.Parse(packet["prn"].ToString());
-            if (!player.IsInPronePose)
-            {
-                if (prone)
-                {
-                    player.CurrentManagedState.Prone();
-                }
-            }
-            else
-            {
-                if (!prone)
-                {
-                    player.ToggleProne();
-                    player.MovementContext.UpdatePoseAfterProne();
-                }
-            }
-        }
+        //private void ProcessPlayerStateProne(Dictionary<string, object> packet)
+        //{
+        //    bool prone = bool.Parse(packet["prn"].ToString());
+        //    if (!player.IsInPronePose)
+        //    {
+        //        if (prone)
+        //        {
+        //            player.CurrentManagedState.Prone();
+        //        }
+        //    }
+        //    else
+        //    {
+        //        if (!prone)
+        //        {
+        //            player.ToggleProne();
+        //            player.MovementContext.UpdatePoseAfterProne();
+        //        }
+        //    }
+        //}
 
-        private void ShouldTeleport(Vector3 desiredPosition)
-        {
-            var direction = (player.Position - desiredPosition).normalized;
-            Ray ray = new(player.Position, direction);
-            LayerMask layerMask = LayerMaskClass.HighPolyWithTerrainNoGrassMask;
-        }
+        //private void ShouldTeleport(Vector3 desiredPosition)
+        //{
+        //    var direction = (player.Position - desiredPosition).normalized;
+        //    Ray ray = new(player.Position, direction);
+        //    LayerMask layerMask = LayerMaskClass.HighPolyWithTerrainNoGrassMask;
+        //}
 
         void Update()
         {
-            Update_ClientDrone();
+            //Update_ClientDrone();
 
-            if (IsClientDrone && ShouldSprint)
-            {
-                player.Physical.Sprint(ShouldSprint);
-            }
+            //if (IsClientDrone && ShouldSprint)
+            //{
+            //    player.Physical.Sprint(ShouldSprint);
+            //}
 
-            if (IsClientDrone)
-                return;
+            //if (IsClientDrone)
+            //    return;
 
-            if (player.ActiveHealthController.IsAlive)
-            {
-                var bodyPartHealth = player.ActiveHealthController.GetBodyPartHealth(EBodyPart.Common);
-                if (bodyPartHealth.AtMinimum)
-                {
-                    var packet = new Dictionary<string, object>();
-                    packet.Add("dmt", EDamageType.Undefined.ToString());
-                    packet.Add("m", "Kill");
-                    AkiBackendCommunicationCoop.PostLocalPlayerData(player, packet, true);
-                }
-            }
+            //if (player.ActiveHealthController.IsAlive)
+            //{
+            //    var bodyPartHealth = player.ActiveHealthController.GetBodyPartHealth(EBodyPart.Common);
+            //    if (bodyPartHealth.AtMinimum)
+            //    {
+            //        var packet = new Dictionary<string, object>();
+            //        packet.Add("dmt", EDamageType.Undefined.ToString());
+            //        packet.Add("m", "Kill");
+            //        AkiBackendCommunicationCoop.PostLocalPlayerData(player, packet, true);
+            //    }
+            //}
 
             foreach (var player in Singleton<GameWorld>.Instance.allObservedPlayersByID)
             {
-                player.Value.ObservedPlayerController.ManualUpdate();
+                //player.Value.ObservedPlayerController.ManualUpdate();
             }
         }
 
@@ -406,10 +469,10 @@ namespace StayInTarkov.Core.Player
 
             // Replicate Rotation.
             // Smooth Lerp to the Desired Rotation
-            if (ReplicatedRotation.HasValue)
-            {
-                player.Rotation = ShouldSprint ? ReplicatedRotation.Value : Vector3.Lerp(player.Rotation, ReplicatedRotation.Value, Time.deltaTime * 4);
-            }
+            //if (ReplicatedRotation.HasValue)
+            //{
+            //    player.Rotation = ShouldSprint ? ReplicatedRotation.Value : Vector3.Lerp(player.Rotation, ReplicatedRotation.Value, Time.deltaTime * 4);
+            //}
 
             // This will continue movements set be Player_Move_Patch
             //if (ReplicatedDirection.HasValue)
@@ -422,11 +485,11 @@ namespace StayInTarkov.Core.Player
             //    player.InputDirection = Vector2.zero;
             //}
 
-            if (!ShouldSprint)
-            {
-                PoseLevelSmoothed = Mathf.Lerp(PoseLevelSmoothed, PoseLevelDesired, Time.deltaTime);
-                player.MovementContext.SetPoseLevel(PoseLevelSmoothed, true);
-            }
+            //if (!ShouldSprint)
+            //{
+            //    PoseLevelSmoothed = Mathf.Lerp(PoseLevelSmoothed, PoseLevelDesired, Time.deltaTime);
+            //    player.MovementContext.SetPoseLevel(PoseLevelSmoothed, true);
+            //}
 
             //if (ReplicatedDirection.HasValue)
             //{
@@ -440,22 +503,22 @@ namespace StayInTarkov.Core.Player
 
         //Player_Move_Patch _playerMovePatch = (Player_Move_Patch)ModuleReplicationPatch.Patches["Move"];
 
-        private Vector2 LastDirection { get; set; } = Vector2.zero;
-        private DateTime LastDirectionSent { get; set; } = DateTime.Now;
-        private Vector2 LastRotation { get; set; } = Vector2.zero;
-        private DateTime LastRotationSent { get; set; } = DateTime.Now;
-        private Vector3 LastPosition { get; set; } = Vector3.zero;
-        private DateTime LastPositionSent { get; set; } = DateTime.Now;
-        public Vector2? ReplicatedDirection { get; internal set; }
-        public Vector2? ReplicatedRotation { get; internal set; }
-        public bool? ReplicatedRotationClamp { get; internal set; }
-        public Vector3? ReplicatedPosition { get; internal set; }
-        public DateTime LastPoseSent { get; private set; }
-        public float LastPose { get; private set; }
-        public DateTime LastSpeedSent { get; private set; }
-        public float LastSpeed { get; private set; }
-        public DateTime LastPlayerStateSent { get; private set; } = DateTime.Now;
-        public bool TriggerPressed { get; internal set; }
+        //private Vector2 LastDirection { get; set; } = Vector2.zero;
+        //private DateTime LastDirectionSent { get; set; } = DateTime.Now;
+        //private Vector2 LastRotation { get; set; } = Vector2.zero;
+        //private DateTime LastRotationSent { get; set; } = DateTime.Now;
+        //private Vector3 LastPosition { get; set; } = Vector3.zero;
+        //private DateTime LastPositionSent { get; set; } = DateTime.Now;
+        //public Vector2? ReplicatedDirection { get; internal set; }
+        //public Vector2? ReplicatedRotation { get; internal set; }
+        //public bool? ReplicatedRotationClamp { get; internal set; }
+        //public Vector3? ReplicatedPosition { get; internal set; }
+        //public DateTime LastPoseSent { get; private set; }
+        //public float LastPose { get; private set; }
+        //public DateTime LastSpeedSent { get; private set; }
+        //public float LastSpeed { get; private set; }
+        //public DateTime LastPlayerStateSent { get; private set; } = DateTime.Now;
+        //public bool TriggerPressed { get; internal set; }
         public ManualLogSource Logger { get; private set; }
 
         public Dictionary<string, object> PreMadeMoveDataPacket = new()

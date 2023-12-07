@@ -20,6 +20,7 @@ namespace StayInTarkov.Coop.Components
         public BlockingCollection<Dictionary<string, object>> ActionPacketsMovement { get; private set; } = new(9999);
         public BlockingCollection<Dictionary<string, object>> ActionPacketsDamage { get; private set; } = new(9999);
         public ConcurrentDictionary<string, EFT.Player> Players => CoopGameComponent.Players;
+        public ConcurrentDictionary<string, ObservedPlayerController> OtherPlayers => CoopGameComponent.OtherPlayers;
         public ManualLogSource Logger { get; private set; }
 
         private List<string> RemovedFromAIPlayers = new();
@@ -120,35 +121,35 @@ namespace StayInTarkov.Coop.Components
             }
 
 
-            if (ActionPacketsDamage != null && ActionPacketsDamage.Count > 0)
-            {
-                Stopwatch stopwatchActionPacketsDamage = Stopwatch.StartNew();
-                while (ActionPacketsDamage.TryTake(out var packet))
-                {
-                    if (!packet.ContainsKey("profileId"))
-                        continue;
+            //if (ActionPacketsDamage != null && ActionPacketsDamage.Count > 0)
+            //{
+            //    Stopwatch stopwatchActionPacketsDamage = Stopwatch.StartNew();
+            //    while (ActionPacketsDamage.TryTake(out var packet))
+            //    {
+            //        if (!packet.ContainsKey("profileId"))
+            //            continue;
 
-                    var profileId = packet["profileId"].ToString();
+            //        var profileId = packet["profileId"].ToString();
 
-                    // The person is missing. Lets add this back until they exist
-                    if (!CoopGameComponent.Players.ContainsKey(profileId))
-                    {
-                        //ActionPacketsDamage.Add(packet);
-                        continue;
-                    }
+            //        // The person is missing. Lets add this back until they exist
+            //        if (!CoopGameComponent.Players.ContainsKey(profileId))
+            //        {
+            //            //ActionPacketsDamage.Add(packet);
+            //            continue;
+            //        }
 
-                    var playerKVP = CoopGameComponent.Players[profileId];
-                    if (playerKVP == null)
-                        continue;
+            //        var playerKVP = CoopGameComponent.Players[profileId];
+            //        if (playerKVP == null)
+            //            continue;
 
-                    var coopPlayer = (CoopPlayer)playerKVP;
-                    coopPlayer.ReceiveDamageFromServer(packet);
-                }
-                if (stopwatchActionPacketsDamage.ElapsedMilliseconds > 1)
-                {
-                    Logger.LogDebug($"ActionPacketsDamage took {stopwatchActionPacketsDamage.ElapsedMilliseconds}ms to process!");
-                }
-            }
+            //        var coopPlayer = (CoopPlayer)playerKVP;
+            //        coopPlayer.ReceiveDamageFromServer(packet);
+            //    }
+            //    if (stopwatchActionPacketsDamage.ElapsedMilliseconds > 1)
+            //    {
+            //        Logger.LogDebug($"ActionPacketsDamage took {stopwatchActionPacketsDamage.ElapsedMilliseconds}ms to process!");
+            //    }
+            //}
 
 
             return;
@@ -193,11 +194,11 @@ namespace StayInTarkov.Coop.Components
                         result = true;
                     }
 
-            if (method == "LootableContainer_Interact")
-            {
-                LootableContainer_Interact_Patch.Replicated(packet);
-                result = true;
-            }
+            //if (method == "LootableContainer_Interact")
+            //{
+            //    LootableContainer_Interact_Patch.Replicated(packet);
+            //    result = true;
+            //}
 
             return result;
         }
@@ -213,15 +214,15 @@ namespace StayInTarkov.Coop.Components
 
             var profileId = packet["profileId"].ToString();
 
-            if (Players == null)
+            if (OtherPlayers == null)
             {
                 Logger.LogDebug("Players is Null");
                 return false;
             }
 
-            if (Players.Count == 0)
+            if (OtherPlayers.Count == 0)
             {
-                Logger.LogDebug("Players is Empty");
+                //Logger.LogDebug("Players is Empty");
                 return false;
             }
 
@@ -233,16 +234,16 @@ namespace StayInTarkov.Coop.Components
 
             // ---------------------------------------------------
             //
-            if (!Players.ContainsKey(profileId))
+            if (!OtherPlayers.ContainsKey(profileId))
                 return false;
 
-            var plyr = Players[profileId];
+            var plyr = OtherPlayers[profileId];
             bool processed = false;
 
             //foreach (var plyr in profilePlayers)
             {
                 //if (plyr.Value.TryGetComponent<PlayerReplicatedComponent>(out var prc))
-                var prc = plyr.GetComponent<PlayerReplicatedComponent>();
+                var prc = plyr.PlayerView.GetComponent<PlayerReplicatedComponent>();
                 {
                     prc.ProcessPacket(packet);
                     processed = true;
@@ -267,10 +268,10 @@ namespace StayInTarkov.Coop.Components
                             {
                                 if (!RemovedFromAIPlayers.Contains(profileId))
                                 {
-                                    RemovedFromAIPlayers.Add(profileId);
-                                    Logger.LogDebug("Removing Client Player to Enemy list");
-                                    var botSpawner = (BotSpawner)ReflectionHelpers.GetFieldFromTypeByFieldType(typeof(BotsController), typeof(BotSpawner)).GetValue(botController);
-                                    botSpawner.DeletePlayer(plyr);
+                                    //RemovedFromAIPlayers.Add(profileId);
+                                    //Logger.LogDebug("Removing Client Player to Enemy list");
+                                    //var botSpawner = (BotSpawner)ReflectionHelpers.GetFieldFromTypeByFieldType(typeof(BotsController), typeof(BotSpawner)).GetValue(botController);
+                                    //botSpawner.DeletePlayer(plyr);
                                 }
                             }
                         }
